@@ -81,9 +81,19 @@ zele login imap \
   --email reader@example.com \
   --imap-host imap.example.com --imap-port 993 \
   --password "pass"
+
+# Proton Mail Bridge (STARTTLS on 1143/1025, self-signed cert)
+zele login imap \
+  --email you@proton.me \
+  --imap-host 127.0.0.1 --imap-port 1143 \
+  --smtp-host 127.0.0.1 --smtp-port 1025 \
+  --password "<bridge-password>" \
+  --no-tls --ca ~/bridge/cert.pem
 ```
 
 Use `--imap-user` / `--smtp-user` if the login username differs from your email. Omit `--smtp-host` for read-only access.
+
+For self-signed servers, prefer `--ca <path>` to trust a PEM certificate (Proton Bridge exports `cert.pem`). `--insecure` disables certificate verification and is unsafe. `--no-tls` disables implicit IMAP TLS; STARTTLS is still attempted when the server advertises it. Bridge SSL mode (implicit TLS on custom ports) needs `--smtp-tls`.
 
 ### Account management
 

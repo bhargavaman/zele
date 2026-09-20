@@ -7,6 +7,7 @@
 // with threadId = "folder:uid" (e.g. "INBOX:12345").
 
 import { randomUUID } from 'node:crypto'
+import { isIP } from 'node:net'
 import { ImapFlow, type FetchMessageObject, type MessageEnvelopeObject, type MailboxObject } from 'imapflow'
 import type { Transporter } from 'nodemailer'
 import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js'
@@ -30,6 +31,22 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** TLS options from stored CA / insecure flags. */
+export function tlsSocketOptions(creds: { ca?: string; insecure?: boolean }): { ca?: string[]; rejectUnauthorized?: boolean } | undefined {
+  if (!creds.ca && !creds.insecure) return undefined
+  const options: { ca?: string[]; rejectUnauthorized?: boolean } = {}
+  if (creds.ca) options.ca = [creds.ca]
+  if (creds.insecure) options.rejectUnauthorized = false
+  return options
+}
+
+/** imapflow sets servername:false for IP hosts; Bun tls.connect rejects that, so override with undefined. */
+export function imapTlsOptions(creds: { ca?: string; insecure?: boolean }, host: string): { ca?: string[]; rejectUnauthorized?: boolean; servername?: string } | undefined {
+  const tls = tlsSocketOptions(creds)
+  if (!isIP(host)) return tls
+  return { ...tls, servername: undefined }
+}
 
 /** Parse a threadId in the format "FOLDER:UID" back to folder + uid. */
 function parseThreadId(threadId: string): { folder: string; uid: number } {
@@ -330,12 +347,14 @@ export class ImapSmtpClient {
     const auth = creds.oauth
       ? { user: creds.imap.user, accessToken: creds.oauth.accessToken }
       : { user: creds.imap.user, pass: creds.imap.password }
+    const tls = imapTlsOptions(creds.imap, creds.imap.host)
     return new ImapFlow({
       host: creds.imap.host,
       port: creds.imap.port,
       secure: creds.imap.tls,
       auth,
       logger: false,
+      tls,
     })
   }
 
@@ -401,11 +420,13 @@ export class ImapSmtpClient {
     if (this.smtpTransporter && this.smtpAccessToken === creds.oauth?.accessToken) return this.smtpTransporter
     const nodemailer = await import('nodemailer')
     this.smtpAccessToken = creds.oauth?.accessToken
+    const smtpTls = tlsSocketOptions(creds.smtp)
     this.smtpTransporter = nodemailer.default.createTransport({
       host: creds.smtp.host,
       port: creds.smtp.port,
       secure: creds.smtp.tls,
       requireTLS: !creds.smtp.tls,
+      tls: smtpTls,
       auth: creds.oauth
         ? { type: 'OAuth2', user: creds.smtp.user, accessToken: creds.oauth.accessToken, expires: creds.oauth.expiry }
         : { user: creds.smtp.user, pass: creds.smtp.password },

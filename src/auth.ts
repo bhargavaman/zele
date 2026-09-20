@@ -22,7 +22,7 @@ import { GmailClient } from './gmail-client.js'
 import { CalendarClient } from './calendar-client.js'
 import * as errore from 'errore'
 import { AuthError, UnsupportedError } from './api-utils.js'
-import { ImapSmtpClient } from './imap-smtp-client.js'
+import { ImapSmtpClient, imapTlsOptions, tlsSocketOptions } from './imap-smtp-client.js'
 import { waitForOAuthCode, type BrowserAuthOptions } from './oauth-callback-server.js'
 import {
   MICROSOFT_REDIRECT_PORT,
@@ -49,6 +49,10 @@ export interface ImapCredentials {
   user: string
   password?: string
   tls: boolean
+  /** PEM contents of a CA cert to trust (e.g. Proton Bridge cert.pem). */
+  ca?: string
+  /** Skip TLS certificate verification. Unsafe; prefer a custom CA. */
+  insecure?: boolean
 }
 
 export interface SmtpCredentials {
@@ -57,6 +61,8 @@ export interface SmtpCredentials {
   user: string
   password?: string
   tls: boolean
+  ca?: string
+  insecure?: boolean
 }
 
 /** Stored in the `tokens` column for imap_smtp accounts. */
@@ -297,6 +303,9 @@ export interface LoginImapOptions {
   smtpUser?: string
   smtpPassword?: string
   tls?: boolean
+  smtpTls?: boolean
+  ca?: string
+  insecure?: boolean
 }
 
 /**
@@ -318,6 +327,9 @@ export async function loginImap(
     smtpUser,
     smtpPassword,
     tls = true,
+    smtpTls,
+    ca,
+    insecure,
   } = options
 
   const imapPass = imapPassword ?? password
@@ -332,17 +344,21 @@ export async function loginImap(
       user: imapUser ?? email,
       password: imapPass,
       tls,
+      ca,
+      insecure,
     },
   }
 
   // Test IMAP connection
   const { ImapFlow } = await import('imapflow')
+  const imapTls = imapTlsOptions({ ca, insecure }, imapHost)
   const testClient = new ImapFlow({
     host: imapHost,
     port: imapPort,
     secure: tls,
     auth: { user: imapUser ?? email, pass: imapPass },
     logger: false,
+    tls: imapTls,
   })
 
   const imapTest = await errore.tryAsync({
@@ -363,20 +379,25 @@ export async function loginImap(
       return new Error('SMTP password is required when --smtp-host is provided (--password or --smtp-password)')
     }
 
+    const smtpTlsEnabled = smtpTls ?? smtpPort === 465
     credentials.smtp = {
       host: smtpHost,
       port: smtpPort,
       user: smtpUser ?? email,
       password: smtpPass,
-      tls: smtpPort === 465,
+      tls: smtpTlsEnabled,
+      ca,
+      insecure,
     }
 
     // Test SMTP connection
     const nodemailer = await import('nodemailer')
+    const smtpTlsOptions = tlsSocketOptions({ ca, insecure })
     const transporter = nodemailer.default.createTransport({
       host: smtpHost,
       port: smtpPort,
-      secure: smtpPort === 465,
+      secure: smtpTlsEnabled,
+      tls: smtpTlsOptions,
       auth: { user: smtpUser ?? email, pass: smtpPass },
     })
 
