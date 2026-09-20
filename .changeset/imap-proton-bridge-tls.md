@@ -1,5 +1,5 @@
 ---
-'zele': patch
+'zele': minor
 ---
 
 Support self-signed IMAP/SMTP TLS endpoints like Proton Mail Bridge.

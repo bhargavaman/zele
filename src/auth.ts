@@ -358,7 +358,7 @@ export async function loginImap(
     secure: tls,
     auth: { user: imapUser ?? email, pass: imapPass },
     logger: false,
-    ...(imapTls ? { tls: imapTls } : {}),
+    tls: imapTls,
   })
 
   const imapTest = await errore.tryAsync({
@@ -397,7 +397,7 @@ export async function loginImap(
       host: smtpHost,
       port: smtpPort,
       secure: smtpTlsEnabled,
-      ...(smtpTlsOptions ? { tls: smtpTlsOptions } : {}),
+      tls: smtpTlsOptions,
       auth: { user: smtpUser ?? email, pass: smtpPass },
     })
 

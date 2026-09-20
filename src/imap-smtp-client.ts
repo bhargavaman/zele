@@ -32,24 +32,20 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Node TLS options for imapflow/nodemailer from stored credentials.
- *  Lets self-signed servers be trusted via a PEM CA or, as a last resort,
- *  have certificate verification disabled. */
+/** TLS options from stored CA / insecure flags. */
 export function tlsSocketOptions(creds: { ca?: string; insecure?: boolean }): { ca?: string[]; rejectUnauthorized?: boolean } | undefined {
   if (!creds.ca && !creds.insecure) return undefined
-  return {
-    ...(creds.ca ? { ca: [creds.ca] } : {}),
-    ...(creds.insecure ? { rejectUnauthorized: false } : {}),
-  }
+  const options: { ca?: string[]; rejectUnauthorized?: boolean } = {}
+  if (creds.ca) options.ca = [creds.ca]
+  if (creds.insecure) options.rejectUnauthorized = false
+  return options
 }
 
-/** TLS options for imapflow. imapflow passes `servername: false` for IP hosts,
- *  which Bun's tls.connect rejects; overriding it with `undefined` keeps IP
- *  hosts (e.g. Proton Bridge on 127.0.0.1) working on both Node and Bun. */
+/** imapflow sets servername:false for IP hosts; Bun tls.connect rejects that, so override with undefined. */
 export function imapTlsOptions(creds: { ca?: string; insecure?: boolean }, host: string): { ca?: string[]; rejectUnauthorized?: boolean; servername?: string } | undefined {
   const tls = tlsSocketOptions(creds)
   if (!isIP(host)) return tls
-  return { ...(tls ?? {}), servername: undefined }
+  return { ...tls, servername: undefined }
 }
 
 /** Parse a threadId in the format "FOLDER:UID" back to folder + uid. */
@@ -358,7 +354,7 @@ export class ImapSmtpClient {
       secure: creds.imap.tls,
       auth,
       logger: false,
-      ...(tls ? { tls } : {}),
+      tls,
     })
   }
 
@@ -430,7 +426,7 @@ export class ImapSmtpClient {
       port: creds.smtp.port,
       secure: creds.smtp.tls,
       requireTLS: !creds.smtp.tls,
-      ...(smtpTls ? { tls: smtpTls } : {}),
+      tls: smtpTls,
       auth: creds.oauth
         ? { type: 'OAuth2', user: creds.smtp.user, accessToken: creds.oauth.accessToken, expires: creds.oauth.expiry }
         : { user: creds.smtp.user, pass: creds.smtp.password },

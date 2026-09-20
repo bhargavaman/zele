@@ -3,7 +3,7 @@
 // Supports multiple accounts: login adds accounts, logout removes one.
 
 import type { ZeleCli } from '../cli-types.js'
-import { readFileSync } from 'node:fs'
+import fs from 'node:fs'
 import { z } from 'zod'
 import * as errore from 'errore'
 import { isAgent, type GokeExecutionContext } from 'goke'
@@ -241,9 +241,10 @@ export function registerAuthCommands(cli: ZeleCli) {
 
       let ca: string | undefined
       if (options.ca) {
-        const caResult = errore.tryFn({
-          try: () => readFileSync(options.ca!, 'utf8'),
-          catch: (err) => new Error(`Failed to read --ca file: ${options.ca}`, { cause: err }),
+        const caPath = options.ca
+        const caResult = errore.try({
+          try: () => fs.readFileSync(caPath, 'utf8'),
+          catch: (err) => new Error(`Failed to read --ca file: ${caPath}`, { cause: err }),
         })
         if (caResult instanceof Error) handleCommandError(caResult)
         ca = caResult
