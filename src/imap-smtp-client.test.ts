@@ -1,12 +1,62 @@
 import { expect, test, describe } from 'vitest'
 import {
-  decodeBodyCharset,
   decodeQuotedPrintable,
+  ImapSmtpClient,
   imapSearchFolders,
   parseImapSearchQuery,
   tlsSocketOptions,
   imapTlsOptions,
 } from './imap-smtp-client.js'
+import type { FetchMessageObject } from 'imapflow'
+
+describe('IMAP MIME body decoding', () => {
+  const client = new ImapSmtpClient({
+    account: { email: 'reader@example.com', appId: 'imap_smtp', accountType: 'imap_smtp', capabilities: [] },
+    loadCredentials: async () => ({}),
+  })
+
+  test.each([
+    { charset: 'utf-8', bytes: Buffer.from('时间：2026'), text: '时间：2026' },
+    { charset: 'utf-8', bytes: Buffer.from('ĀĀ Ã© café'), text: 'ĀĀ Ã© café' },
+    { charset: 'iso-8859-1', bytes: Buffer.from([0x63, 0x61, 0x66, 0xe9]), text: 'café' },
+    { charset: 'windows-1252', bytes: Buffer.from([0x80, 0x20, 0x93, 0x68, 0x69, 0x94]), text: '€ “hi”' },
+    { charset: 'gbk', bytes: Buffer.from([0xca, 0xb1, 0xbc, 0xe4]), text: '时间' },
+    { charset: undefined, bytes: Buffer.from('时间'), text: '时间' },
+    { charset: 'x-unknown', bytes: Buffer.from('时间'), text: '时间' },
+  ])('decodes $charset bytes after transfer decoding in single and multipart messages', ({ charset, bytes, text }) => {
+    for (const encoding of ['8bit', 'base64', 'quoted-printable']) {
+      const payload = encoding === 'base64'
+        ? Buffer.from(bytes.toString('base64'))
+        : encoding === 'quoted-printable'
+          ? Buffer.from([...bytes].map((byte) => `=${byte.toString(16).padStart(2, '0')}`).join('=\r\n'))
+          : bytes
+      const headers = `Content-Type: text/plain${charset ? `; charset="${charset}"` : ''}\r\nContent-Transfer-Encoding: ${encoding}\r\n\r\n`
+      const part = Buffer.concat([Buffer.from(headers), payload])
+      for (const multipart of [false, true]) {
+        const source = multipart
+          ? Buffer.concat([Buffer.from('Content-Type: multipart/alternative; boundary="test"\r\n\r\n--test\r\n'), part, Buffer.from('\r\n--test--\r\n')])
+          : part
+        const result = client.parseImapMessage({
+          message: { uid: 1, source } as FetchMessageObject,
+          folder: 'INBOX',
+        })
+        expect(result.body.trimEnd(), `${charset}/${encoding}/${multipart}`).toBe(text)
+        expect(result.textBody?.trimEnd()).toBe(text)
+      }
+    }
+  })
+
+  test('combines literal and escaped bytes before decoding UTF-8', () => {
+    const source = Buffer.concat([
+      Buffer.from('Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n<p>'),
+      Buffer.from([0xe6]),
+      Buffer.from('=97=B6=E9=97=B4</p>'),
+    ])
+    const result = client.parseImapMessage({ message: { uid: 1, source } as FetchMessageObject, folder: 'INBOX' })
+    expect(result.body).toBe('<p>时间</p>')
+    expect(result.mimeType).toBe('text/html')
+  })
+})
 
 describe('tlsSocketOptions', () => {
   test('no ca or insecure means default validation', () => {
@@ -127,42 +177,26 @@ describe('imapSearchFolders', () => {
 
 describe('decodeQuotedPrintable', () => {
   test('decodes UTF-8 quoted-printable into readable text', () => {
-    expect(decodeQuotedPrintable('=E6=97=B6=E9=97=B4=EF=BC=9A2026')).toBe('时间：2026')
+    expect(decodeQuotedPrintable('=E6=97=B6=E9=97=B4=EF=BC=9A2026').toString('utf-8')).toBe('时间：2026')
   })
 
   test('handles soft line breaks', () => {
-    expect(decodeQuotedPrintable('hello=\r\nworld')).toBe('helloworld')
+    expect(decodeQuotedPrintable('hello=\r\nworld').toString()).toBe('helloworld')
   })
 
   test('keeps ASCII untouched', () => {
-    expect(decodeQuotedPrintable('plain ascii =3D stays')).toBe('plain ascii = stays')
+    expect(decodeQuotedPrintable('plain ascii =3D stays').toString()).toBe('plain ascii = stays')
   })
 
   test('lowercase hex escapes decode the same', () => {
-    expect(decodeQuotedPrintable('=e6=97=b6=e9=97=b4')).toBe('时间')
+    expect(decodeQuotedPrintable('=e6=97=b6=e9=97=b4').toString('utf-8')).toBe('时间')
   })
 
-  test('invalid UTF-8 sequences do not throw and keep bytes', () => {
-    // latin-1 content: =E9 alone is invalid UTF-8; must not throw, must not lose the byte
-    const out = decodeQuotedPrintable('caf=E9')
-    expect(out.length).toBeGreaterThan(0)
-  })
-})
-
-describe('decodeBodyCharset', () => {
-  test('re-encodes latin1 mojibake to utf-8 when charset says so', () => {
-    // Simulate: raw bytes were UTF-8, but imapflow's binarySource produced a latin1 string
-    const utf8 = '时间：2026'
-    const mojibake = Buffer.from(utf8, 'utf-8').toString('latin1')
-    expect(decodeBodyCharset(mojibake, 'utf-8')).toBe(utf8)
+  test('preserves non-UTF-8 bytes for charset decoding', () => {
+    expect(decodeQuotedPrintable('caf=E9')).toEqual(Buffer.from([0x63, 0x61, 0x66, 0xe9]))
   })
 
-  test('utf-8 input passes through unchanged', () => {
-    expect(decodeBodyCharset('时间：2026', 'utf-8')).toBe('时间：2026')
-  })
-
-  test('unknown charset returns input unchanged', () => {
-    expect(decodeBodyCharset('hello', undefined)).toBe('hello')
-    expect(decodeBodyCharset('hello', 'x-unknown')).toBe('hello')
+  test('preserves malformed escapes', () => {
+    expect(decodeQuotedPrintable('a=ZZ b=2 c=').toString()).toBe('a=ZZ b=2 c=')
   })
 })
