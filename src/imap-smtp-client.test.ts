@@ -1,5 +1,12 @@
 import { expect, test, describe } from 'vitest'
-import { imapSearchFolders, parseImapSearchQuery, tlsSocketOptions, imapTlsOptions } from './imap-smtp-client.js'
+import {
+  decodeBodyCharset,
+  decodeQuotedPrintable,
+  imapSearchFolders,
+  parseImapSearchQuery,
+  tlsSocketOptions,
+  imapTlsOptions,
+} from './imap-smtp-client.js'
 
 describe('tlsSocketOptions', () => {
   test('no ca or insecure means default validation', () => {
@@ -115,5 +122,47 @@ describe('imapSearchFolders', () => {
       folder: 'inbox',
       inFolder: parseImapSearchQuery('in:sent to:alice@example.com').inFolder,
     })).toEqual(['sent'])
+  })
+})
+
+describe('decodeQuotedPrintable', () => {
+  test('decodes UTF-8 quoted-printable into readable text', () => {
+    expect(decodeQuotedPrintable('=E6=97=B6=E9=97=B4=EF=BC=9A2026')).toBe('时间：2026')
+  })
+
+  test('handles soft line breaks', () => {
+    expect(decodeQuotedPrintable('hello=\r\nworld')).toBe('helloworld')
+  })
+
+  test('keeps ASCII untouched', () => {
+    expect(decodeQuotedPrintable('plain ascii =3D stays')).toBe('plain ascii = stays')
+  })
+
+  test('lowercase hex escapes decode the same', () => {
+    expect(decodeQuotedPrintable('=e6=97=b6=e9=97=b4')).toBe('时间')
+  })
+
+  test('invalid UTF-8 sequences do not throw and keep bytes', () => {
+    // latin-1 content: =E9 alone is invalid UTF-8; must not throw, must not lose the byte
+    const out = decodeQuotedPrintable('caf=E9')
+    expect(out.length).toBeGreaterThan(0)
+  })
+})
+
+describe('decodeBodyCharset', () => {
+  test('re-encodes latin1 mojibake to utf-8 when charset says so', () => {
+    // Simulate: raw bytes were UTF-8, but imapflow's binarySource produced a latin1 string
+    const utf8 = '时间：2026'
+    const mojibake = Buffer.from(utf8, 'utf-8').toString('latin1')
+    expect(decodeBodyCharset(mojibake, 'utf-8')).toBe(utf8)
+  })
+
+  test('utf-8 input passes through unchanged', () => {
+    expect(decodeBodyCharset('时间：2026', 'utf-8')).toBe('时间：2026')
+  })
+
+  test('unknown charset returns input unchanged', () => {
+    expect(decodeBodyCharset('hello', undefined)).toBe('hello')
+    expect(decodeBodyCharset('hello', 'x-unknown')).toBe('hello')
   })
 })

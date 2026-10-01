@@ -32,6 +32,81 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Decode a quoted-printable body.
+ *
+ * Escaped bytes must be collected into a byte buffer first: composing the
+ * string with String.fromCharCode per byte mashes multi-byte UTF-8
+ * sequences into latin1 mojibake (e.g. UTF-8 `=E6=97=B6=E9=97=B4` became
+ * `æ¶é´` instead of the intended characters).
+ */
+export function decodeQuotedPrintable(content: string): string {
+  const softBreakStripped = content.replace(/=\r?\n/g, '')
+  // Fast path: nothing escaped, nothing to decode
+  if (!softBreakStripped.includes('=')) return softBreakStripped
+
+  let out = ''
+  let bytes: number[] = []
+  const flush = () => {
+    if (bytes.length) {
+      out += Buffer.from(bytes).toString('utf-8')
+      bytes = []
+    }
+  }
+
+  for (let i = 0; i < softBreakStripped.length; i++) {
+    const ch = softBreakStripped[i]!
+    if (ch === '=') {
+      const hex = softBreakStripped.slice(i + 1, i + 3)
+      if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16))
+        i += 2
+        continue
+      }
+    }
+    flush()
+    out += ch
+  }
+  flush()
+  return out
+}
+
+/**
+ * Interpret a decoded body according to its declared charset.
+ *
+ * Bodies arrive as JS strings produced from raw bytes; when the declared
+ * charset is not UTF-8 the bytes were most likely mapped to latin1 code
+ * points during decoding, so re-encode to a buffer and decode with the
+ * declared charset. If the input is unchanged (already correct UTF-8), it
+ * is returned untouched.
+ */
+export function decodeBodyCharset(body: string, charset: string | undefined): string {
+  if (!charset) return body
+  const normalized = charset.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!normalized || normalized === 'usascii' || normalized === 'ascii') {
+    return body
+  }
+  if (normalized === 'utf8') {
+    // The body was decoded from raw bytes that the MIME part declared as
+    // UTF-8. If the string still contains latin1-range characters, those
+    // bytes were most likely mapped 1:1 to code points during decoding
+    // (mojibake). Re-encode to bytes and decode as UTF-8. Text that was
+    // decoded correctly contains no lone latin1 chars, so its latin1
+    // re-encode is not valid UTF-8 and the attempt is skipped.
+    const bytes = Buffer.from(body, 'latin1')
+    const roundTrip = bytes.toString('utf-8')
+    if (roundTrip !== body && Buffer.from(roundTrip, 'utf-8').equals(bytes)) {
+      return roundTrip
+    }
+    return body
+  }
+  try {
+    return Buffer.from(body, 'latin1').toString(normalized as BufferEncoding)
+  } catch {
+    return body
+  }
+}
+
 /** TLS options from stored CA / insecure flags. */
 export function tlsSocketOptions(creds: { ca?: string; insecure?: boolean }): { ca?: string[]; rejectUnauthorized?: boolean } | undefined {
   if (!creds.ca && !creds.insecure) return undefined
@@ -1681,7 +1756,7 @@ export class ImapSmtpClient {
     let decoded = this.decodeTransferEncoding(bodyContent, transferEncoding)
     const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i)
     if (charsetMatch) {
-      // Already UTF-8 string, but note the charset for future handling
+      decoded = decodeBodyCharset(decoded, charsetMatch[1])
     }
 
     const isHtml = contentType.toLowerCase().includes('text/html')
@@ -1719,7 +1794,11 @@ export class ImapSmtpClient {
         continue
       }
 
-      const decoded = this.decodeTransferEncoding(partBody, partEncoding)
+      let decoded = this.decodeTransferEncoding(partBody, partEncoding)
+      const charsetMatch = partContentType.match(/charset="?([^";\s]+)"?/i)
+      if (charsetMatch) {
+        decoded = decodeBodyCharset(decoded, charsetMatch[1])
+      }
 
       if (partContentType.toLowerCase().includes('text/html')) {
         htmlBody = decoded
@@ -1740,9 +1819,7 @@ export class ImapSmtpClient {
       return Buffer.from(content.replace(/\s/g, ''), 'base64').toString('utf-8')
     }
     if (enc === 'quoted-printable') {
-      return content
-        .replace(/=\r?\n/g, '') // Soft line breaks
-        .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      return decodeQuotedPrintable(content)
     }
     return content
   }
