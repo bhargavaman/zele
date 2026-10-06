@@ -1,4 +1,4 @@
-// Label commands: list, get, create, delete, counts.
+// Label commands: list, get, create, rename, delete, counts.
 // Manages Gmail labels with YAML output.
 // Cache is handled by the client — commands just call methods and use data.
 // Multi-account: list and counts fetch all accounts concurrently and merge.
@@ -113,6 +113,22 @@ export function registerLabelCommands(cli: ZeleCli) {
 
       out.printYaml(result)
       out.success(`Label created: "${result.name}"`)
+    })
+
+  // =========================================================================
+  // label rename
+  // =========================================================================
+
+  cli
+    .command('label rename <labelId> <name>', 'Rename a label (keeps its ID and thread assignments)')
+    .action(async (labelId, name, options) => {
+      const { client } = await getGmailClient(options.account)
+
+      const result = await client.renameLabel({ labelId, name })
+      if (result instanceof Error) handleCommandError(result)
+
+      out.printYaml(result)
+      out.success(`Label renamed: "${result.name}"`)
     })
 
   // =========================================================================

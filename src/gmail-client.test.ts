@@ -1,7 +1,7 @@
 // Tests for GmailClient parsing behavior used by TUI previews.
 // Captures entity/encoding regressions in snippet fields from Gmail metadata responses.
 
-import { expect, test, describe } from 'vitest'
+import { expect, test, describe, vi } from 'vitest'
 import { OAuth2Client } from 'googleapis-common'
 import {
   buildGmailMimeMessage,
@@ -368,6 +368,29 @@ describe('lookupLabel', () => {
   test('returns system label ids without calling Gmail', async () => {
     expect(await client.lookupLabel('INBOX')).toBe('INBOX')
     expect(await client.lookupLabel('SENT')).toBe('SENT')
+  })
+})
+
+describe('renameLabel', () => {
+  test('patches the label name by ID and drops cached ID mappings', async () => {
+    const c = new GmailClient({ auth: new OAuth2Client() })
+    const patch = vi.fn(async ({ requestBody }: { requestBody: { name: string } }) => ({
+      data: { id: 'Label_1', name: requestBody.name },
+    }))
+    ;(c as any).gmail = { users: { labels: { patch } } }
+    ;(c as any).labelIdCache = { Work: 'Label_1' }
+
+    expect(await c.renameLabel({ labelId: 'Label_1', name: 'Job' })).toEqual({ id: 'Label_1', name: 'Job' })
+    expect(patch).toHaveBeenCalledWith({ userId: 'me', id: 'Label_1', requestBody: { name: 'Job' } })
+    expect((c as any).labelIdCache).toEqual({})
+  })
+
+  test('returns the API error as a value', async () => {
+    const c = new GmailClient({ auth: new OAuth2Client() })
+    const patch = vi.fn(async () => { throw new Error('boom') })
+    ;(c as any).gmail = { users: { labels: { patch } } }
+
+    expect(await c.renameLabel({ labelId: 'Label_1', name: 'Job' })).toBeInstanceOf(Error)
   })
 })
 
