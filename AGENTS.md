@@ -6,6 +6,16 @@ the TUI (the root command) is only supported in bun. our bin file tries to use b
 
 to run the cli locally use `bun src/cli.ts`
 
+## live testing on real accounts
+
+the local zele DB is logged in to Tommy's real mail accounts. a mistake here changes real mailboxes or emails real people.
+
+- **always ask the user before** running any command or script that touches a real account (labels, archive, trash, drafts, send, calendar events). read-only commands like `mail list`, `mail read`, `label list` are also included: ask first.
+- prefer unit tests. only do live tests when they are needed, and say exactly what you will run and on which account.
+- use a low-risk account the user owns, like `daer.tommy@gmail.com`. never pick an account without asking.
+- **never send email to anyone except Tommy's own addresses** (the accounts listed by `zele whoami`). to test sending, send from one owned account to another owned account. never reply to or send into threads that include other people.
+- clean up everything a live test creates (labels, drafts, events) and report what was changed.
+
 ## goke typing
 
 do not add manual type annotations to `.action(async ...)` parameters in goke commands; rely on goke option inference.
