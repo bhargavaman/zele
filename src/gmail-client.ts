@@ -13,7 +13,7 @@ import type { OAuth2Client } from 'googleapis-common'
 import { createMimeMessage } from 'mimetext'
 import { parseFrom, parseAddressList, resolveReplyRecipients, replySubject, threadAnchor, checkThreadLatestSeen, type SentInThread, type ThreadReplyEnvelope } from './email-utils.js'
 import * as errore from 'errore'
-import { withRetry, mapConcurrent, isTruthy, AuthError, isAuthLikeError, ApiError, NotFoundError, EmptyThreadError, MissingDataError, abortableSleep, SelfRecipientError, AmbiguousRecipientError, UnseenLatestError } from './api-utils.js'
+import { withRetry, mapConcurrent, isTruthy, AuthError, isAuthLikeError, ApiError, NotFoundError, EmptyThreadError, MissingDataError, ValidationError, abortableSleep, SelfRecipientError, AmbiguousRecipientError, UnseenLatestError } from './api-utils.js'
 import { renderEmailBody } from './output.js'
 import * as orm from 'drizzle-orm'
 import { getDb, schema } from './db.js'
@@ -135,6 +135,9 @@ export interface WatchEvent {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+
+/** Gmail-assigned user label IDs look like `Label_12`. */
+const GMAIL_LABEL_ID_PATTERN = /^Label_\d+$/
 
 const SYSTEM_LABEL_IDS = new Set([
   'INBOX',
@@ -1367,10 +1370,10 @@ export class GmailClient {
     threadIds: string[]
     addLabelIds?: string[]
     removeLabelIds?: string[]
-  }): Promise<void | AuthError | ApiError> {
+  }): Promise<void | AuthError | ApiError | ValidationError> {
     // Resolve add labels (auto-create if missing), but only look up remove labels (never create)
     const resolvedAdd = await Promise.all(addLabelIds.map((l) => this.resolveLabelId(l)))
-    const addErr = resolvedAdd.find((r): r is AuthError | ApiError => r instanceof Error)
+    const addErr = resolvedAdd.find((r): r is AuthError | ApiError | ValidationError => r instanceof Error)
     if (addErr) return addErr
 
     const resolvedRemoveRaw = await Promise.all(removeLabelIds.map((l) => this.lookupLabel(l)))
@@ -1480,9 +1483,9 @@ export class GmailClient {
   // Labels CRUD
   // =========================================================================
 
-  async listLabels(): Promise<{ parsed: ReturnType<GmailClient['parseLabels']>; raw: gmail_v1.Schema$Label[] } | AuthError | ApiError> {
-    // Check cache
-    const cached = await this.getCachedLabels()
+  async listLabels({ refresh = false }: { refresh?: boolean } = {}): Promise<{ parsed: ReturnType<GmailClient['parseLabels']>; raw: gmail_v1.Schema$Label[] } | AuthError | ApiError> {
+    // Check cache (unless the caller needs fresh data)
+    const cached = refresh ? undefined : await this.getCachedLabels()
     if (cached) {
       return { parsed: this.parseLabels(cached), raw: cached }
     }
@@ -1637,7 +1640,7 @@ export class GmailClient {
   }
 
   /** Resolve a label name to its ID, auto-creating if missing. Public wrapper for filter commands. */
-  async resolveLabel(nameOrId: string): Promise<string | AuthError | ApiError> {
+  async resolveLabel(nameOrId: string): Promise<string | AuthError | ApiError | ValidationError> {
     return this.resolveLabelId(nameOrId)
   }
 
@@ -2258,35 +2261,58 @@ export class GmailClient {
   // Private: label resolution
   // =========================================================================
 
-  /** Look up a label ID by name. Returns null if not found (never creates). */
-  async lookupLabel(labelNameOrId: string): Promise<string | null | AuthError | ApiError> {
-    if (SYSTEM_LABEL_IDS.has(labelNameOrId)) return labelNameOrId
-    if (this.labelIdCache[labelNameOrId]) return this.labelIdCache[labelNameOrId]!
-
-    const labelsResult = await this.listLabels()
-    if (labelsResult instanceof Error) return labelsResult
-    const { parsed: labels } = labelsResult
-    const match = labels.find((l) => l.name.toLowerCase() === labelNameOrId.toLowerCase())
-    if (match) {
-      this.labelIdCache[labelNameOrId] = match.id
-      return match.id
-    }
-
-    return null
+  /**
+   * Find a label by exact ID or case-insensitive name.
+   * Matching IDs matters: callers (and agents) often pass `Label_12` straight from
+   * `zele label list`, and treating that as a new name would create a literal "Label_12".
+   */
+  private findLabelId(labels: ReturnType<GmailClient['parseLabels']>, labelNameOrId: string): string | null {
+    const byId = labels.find((l) => l.id === labelNameOrId)
+    if (byId) return byId.id
+    const lower = labelNameOrId.toLowerCase()
+    return labels.find((l) => l.name.toLowerCase() === lower)?.id ?? null
   }
 
-  /** Resolve a label ID by name, auto-creating if it doesn't exist. */
-  private async resolveLabelId(labelNameOrId: string): Promise<string | AuthError | ApiError> {
-    if (SYSTEM_LABEL_IDS.has(labelNameOrId)) return labelNameOrId
+  /**
+   * Resolve a name or ID against the labels list. The labels list is cached for 30 minutes,
+   * so a miss on cached data is retried once against the live API before giving up.
+   * Labels created, renamed or deleted outside zele would otherwise look missing.
+   */
+  private async findLabelIdFresh(labelNameOrId: string): Promise<string | null | AuthError | ApiError> {
     if (this.labelIdCache[labelNameOrId]) return this.labelIdCache[labelNameOrId]!
 
-    const labelsResult = await this.listLabels()
-    if (labelsResult instanceof Error) return labelsResult
-    const { parsed: labels } = labelsResult
-    const match = labels.find((l) => l.name.toLowerCase() === labelNameOrId.toLowerCase())
-    if (match) {
-      this.labelIdCache[labelNameOrId] = match.id
-      return match.id
+    const cachedResult = await this.listLabels()
+    if (cachedResult instanceof Error) return cachedResult
+    let id = this.findLabelId(cachedResult.parsed, labelNameOrId)
+    if (!id) {
+      const freshResult = await this.listLabels({ refresh: true })
+      if (freshResult instanceof Error) return freshResult
+      id = this.findLabelId(freshResult.parsed, labelNameOrId)
+    }
+    if (id) this.labelIdCache[labelNameOrId] = id
+    return id
+  }
+
+  /** Look up a label ID by name or ID. Returns null if not found (never creates). */
+  async lookupLabel(labelNameOrId: string): Promise<string | null | AuthError | ApiError> {
+    if (SYSTEM_LABEL_IDS.has(labelNameOrId)) return labelNameOrId
+    return this.findLabelIdFresh(labelNameOrId)
+  }
+
+  /** Resolve a label ID by name or ID, auto-creating by name if it doesn't exist. */
+  private async resolveLabelId(labelNameOrId: string): Promise<string | AuthError | ApiError | ValidationError> {
+    if (SYSTEM_LABEL_IDS.has(labelNameOrId)) return labelNameOrId
+
+    const found = await this.findLabelIdFresh(labelNameOrId)
+    if (found instanceof Error) return found
+    if (found) return found
+
+    // An unknown `Label_<n>` is a stale or wrong ID, never a name worth creating.
+    if (GMAIL_LABEL_ID_PATTERN.test(labelNameOrId)) {
+      return new ValidationError({
+        field: 'label',
+        reason: `"${labelNameOrId}" looks like a Gmail label ID but no label has that ID. Run "zele label list" for current IDs.`,
+      })
     }
 
     // Label doesn't exist — create it
