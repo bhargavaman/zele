@@ -277,17 +277,31 @@ describe('buildGmailMimeMessage', () => {
     expect(Buffer.from(body, 'base64')).toEqual(pdf)
   })
 
-  test('plain body without attachments is not multipart/mixed', () => {
-    const encoded = buildGmailMimeMessage({
+  test('plain body gets an HTML alternative so Gmail never hard-wraps it', () => {
+    const body = 'Hi Bob,\n\nAsk <alice@example.test> about Vec<String> & co.\n  indented'
+    const mime = decodeGmailRaw(buildGmailMimeMessage({
       to: [{ email: 'recipient@example.test' }],
       subject: 'Hi',
-      body: 'No files',
+      body,
       fromEmail: 'me@example.com',
-    })
-    const mime = decodeGmailRaw(encoded)
-    expect(mime).toContain('text/plain')
+    }))
+    expect(mime).toContain('multipart/alternative')
     expect(mime).not.toContain('multipart/mixed')
-    expect(mime).toContain('No files')
+    const part = (type: string) => mime.split(/\r?\n--/).find((p) => p.includes(`Content-Type: ${type}`))!.split(/\r?\n\r?\n/).slice(1).join('\n\n').trimEnd()
+    expect(part('text/plain')).toBe(body)
+    expect(part('text/html')).toMatchInlineSnapshot(`"<div style="white-space:pre-wrap">Hi Bob,<br><br>Ask &lt;alice@example.test&gt; about Vec&lt;String&gt; &amp; co.<br>  indented</div>"`)
+  })
+
+  test('HTML body is sent as HTML only', () => {
+    const body = '<p>Hello &amp; <b>bye</b></p>'
+    const mime = decodeGmailRaw(buildGmailMimeMessage({
+      to: [{ email: 'recipient@example.test' }],
+      subject: 'Hi',
+      body,
+    }))
+    expect(mime).toContain('Content-Type: text/html')
+    expect(mime).toContain(body)
+    expect(mime).not.toContain('text/plain')
   })
 })
 

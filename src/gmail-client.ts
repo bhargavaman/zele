@@ -208,6 +208,15 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]/g, ' ').trim()
 }
 
+function plainTextToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r\n?|\n/g, '<br>')
+  return `<div style="white-space:pre-wrap">${escaped}</div>`
+}
+
 function encodeBase64Url(data: string | Buffer) {
   const buf = typeof data === 'string' ? Buffer.from(data) : data
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -252,11 +261,15 @@ export function buildGmailMimeMessage({
 
   msg.setSubject(subject)
 
-  const isHtml = /<[a-z][\s\S]*>/i.test(body)
-  msg.addMessage({
-    contentType: isHtml ? 'text/html' : 'text/plain',
-    data: body,
-  })
+  // Real HTML has a closing tag or <br>. `<bob@example.com>` and `Vec<String>` do not.
+  if (/<\/[a-z][a-z0-9]*\s*>|<br\s*\/?>/i.test(body)) {
+    msg.addMessage({ contentType: 'text/html', data: body })
+  } else {
+    // Text-only drafts open in Gmail's plain-text composer, which hard-wraps
+    // paragraphs at ~78 cols on send. An HTML alternative keeps wrapping natural.
+    msg.addMessage({ contentType: 'text/plain', data: body })
+    msg.addMessage({ contentType: 'text/html', data: plainTextToHtml(body) })
+  }
 
   if (inReplyTo) {
     msg.setHeader('In-Reply-To', sanitizeHeaderValue(inReplyTo))
