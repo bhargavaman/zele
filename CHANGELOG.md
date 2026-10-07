@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.9.0
+
+1. **Proton Mail Bridge and self-signed IMAP/SMTP servers** — `login imap` now works with local TLS endpoints that use their own certificate:
+
+   ```bash
+   # Proton Bridge default (STARTTLS on 1143/1025), trusting the exported cert
+   zele login imap \
+     --email you@proton.me \
+     --imap-host 127.0.0.1 --imap-port 1143 \
+     --smtp-host 127.0.0.1 --smtp-port 1025 \
+     --password "<bridge-password>" \
+     --no-tls --ca ~/bridge/cert.pem
+
+   # Bridge SSL mode: both listeners use implicit TLS
+   zele login imap \
+     --email you@proton.me \
+     --imap-host 127.0.0.1 --imap-port 1143 \
+     --smtp-host 127.0.0.1 --smtp-port 1025 \
+     --password "<bridge-password>" \
+     --smtp-tls --ca ~/bridge/cert.pem
+   ```
+
+   - `--ca <path>` trusts a PEM certificate, such as Bridge's exported `cert.pem`
+   - `--smtp-tls` forces implicit TLS on a custom SMTP port
+   - `--insecure` skips certificate verification. It is unsafe; prefer `--ca`
+   - `--no-tls` disables implicit IMAP TLS. STARTTLS is still used when the server offers it
+
+2. **New `label rename` command** — rename a Gmail label in place. The label keeps its ID and all its threads:
+
+   ```bash
+   zele label list
+   zele label rename Label_12 Bookings
+   ```
+
+3. **`mail search` now finds mail you sent** — before, search looked only in Inbox. IMAP search now looks in **Inbox** and **Sent**; use `in:sent` or `in:inbox` for one mailbox. Gmail search with no `--folder` now searches all mail (spam and trash excluded). Results from both mailboxes are sorted by date across pages. `mail list --folder` stays on that folder even if the filter has a different `in:`.
+
+   ```bash
+   zele mail search "to:alice@example.com" --limit 20
+   zele mail search "in:sent to:alice@example.com" --limit 20
+   ```
+
+4. **No more hard-wrapped Gmail drafts** — Gmail opened text-only drafts in its plain-text composer, which broke long paragraphs into ~78-column lines on send. Plain-text bodies are now sent with an HTML copy, so lines wrap naturally. Text like `Bob <bob@example.com>` or `Vec<String>` is no longer mistaken for HTML. This also fixes forwarded drafts losing their line breaks.
+
+5. **`mail label --add` no longer creates junk labels** — labels created or renamed outside zele were not found, so zele created duplicates, and a label ID like `Label_12` became a new label with that literal name. zele now matches label IDs as well as names, refreshes the label list before it treats a label as missing, and rejects unknown `Label_<n>` IDs.
+
+6. **Fixed `mail list --filter is:unread`** — it no longer returns read or sent threads, and it fills `--limit` with real matches. `from` is now the sender of the latest message, and threads where you sent the latest message show `flags: sent`. `--label Work` resolves label names.
+
+7. **Fixed unreadable non-ASCII IMAP bodies** — Chinese (UTF-8, GBK), Latin-1 accents and Windows-1252 punctuation now show correctly in quoted-printable, base64 and raw bodies.
+
+Thanks @georgantas for #15, @yougeqiu for #16, @emanuelet for #18 and #19, and @Cvikli for finding the draft wrapping bug in #17!
+
 ## 0.8.0
 
 1. **Importable mail SDK** — apps can list, read, reply, and mutate mail without spawning the CLI. `import 'zele'` now resolves to `dist/index.js`:
