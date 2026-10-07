@@ -380,8 +380,8 @@ describe('buildGmailSearchParams', () => {
   })
 
   test('mail search with no folder does not force in:inbox', () => {
-    expect(buildGmailSearchParams({ query: 'to:foo@bar.com' })).toEqual({
-      q: 'to:foo@bar.com',
+    expect(buildGmailSearchParams({ query: 'to:alice@example.com' })).toEqual({
+      q: 'to:alice@example.com',
       resolvedLabelIds: [],
     })
   })

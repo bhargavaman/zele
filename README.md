@@ -126,7 +126,7 @@ zele mail watch --filter "is:unread from:alice"   # wait for a specific email
 zele mail watch --timeout 300                     # wait up to 5 minutes
 ```
 
-Default folder is **inbox**. Use `--folder sent` for mail you sent. `is:unread` only matches unread inbox threads.
+`mail list` defaults to **Inbox**. Use `--folder sent` for mail you sent. `is:unread` on `mail list` only matches unread Inbox threads. `mail search` looks in Inbox and Sent on IMAP, and Gmail all-mail on Google accounts.
 
 **Reply safety.** `mail reply` and `mail send --thread-id` **refuse to send** unless `mail read` already showed the live last message in that thread. This stops agents from answering a stale view after a new reply arrives. `--dry-run` does not send, so it skips the check. `--force` skips it too.
 
@@ -196,12 +196,12 @@ zele mail search "from:noreply@github.com older_than:7d" --limit 100 \
   | xargs zele mail archive
 
 # list archived threads later
-zele mail list --filter "in:archive" --limit 100
+zele mail list --folder archive --limit 100
 ```
 
 ### Search query syntax
 
-For **Google accounts**, `mail search` and `mail list --filter` use [Gmail search operators](https://support.google.com/mail/answer/7190) server-side. For **IMAP accounts**, queries are translated to IMAP SEARCH criteria (a subset is supported). IMAP `mail search` looks in **Inbox** and **Sent**. Use `in:sent` or `in:inbox` to search one mailbox.
+For **Google accounts**, `mail search` and `mail list --filter` use [Gmail search operators](https://support.google.com/mail/answer/7190) server-side. For **IMAP accounts**, queries are translated to IMAP SEARCH criteria (a subset is supported). IMAP `mail search` looks in **Inbox** and **Sent**. Use `in:sent` or `in:inbox` on `mail search` to search one mailbox. `mail list --folder` stays on that mailbox even if the filter has `in:`.
 
 | Operator | Example | Google | IMAP |
 |---|---|---|---|

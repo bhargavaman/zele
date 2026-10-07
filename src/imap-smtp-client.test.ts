@@ -1,5 +1,5 @@
 import { expect, test, describe } from 'vitest'
-import { imapSearchFolders, parseImapSearchQuery, tlsSocketOptions, imapTlsOptions } from './imap-smtp-client.js'
+import { imapSearchFolders, pageThreadsByDate, parseImapSearchQuery, tlsSocketOptions, imapTlsOptions } from './imap-smtp-client.js'
 
 describe('tlsSocketOptions', () => {
   test('no ca or insecure means default validation', () => {
@@ -84,6 +84,13 @@ describe('parseImapSearchQuery', () => {
       searchCriteria: { flagged: true, from: 'github' },
     })
   })
+
+  test('in:starred is a flag, not a mailbox', () => {
+    expect(parseImapSearchQuery('in:starred from:github')).toEqual({
+      inFolder: undefined,
+      searchCriteria: { flagged: true, from: 'github' },
+    })
+  })
 })
 
 describe('imapSearchFolders', () => {
@@ -110,10 +117,42 @@ describe('imapSearchFolders', () => {
     expect(imapSearchFolders({ folder: 'sent' })).toEqual(['sent'])
   })
 
-  test('in: in the query wins over --folder', () => {
+  test('mail list --folder stays on that mailbox when in: names another', () => {
     expect(imapSearchFolders({
       folder: 'inbox',
       inFolder: parseImapSearchQuery('in:sent to:alice@example.com').inFolder,
+    })).toEqual([])
+    expect(imapSearchFolders({
+      folder: 'sent',
+      inFolder: parseImapSearchQuery('in:sent to:alice@example.com').inFolder,
     })).toEqual(['sent'])
+  })
+})
+
+describe('pageThreadsByDate', () => {
+  test('merges by envelope date, not mailbox UID order', () => {
+    const page = pageThreadsByDate({
+      threads: [
+        { id: 'INBOX:99', date: '2026-08-01T00:00:00.000Z' },
+        { id: 'Sent:1', date: '2026-09-04T00:00:00.000Z' },
+        { id: 'Sent:2', date: '2026-08-31T00:00:00.000Z' },
+      ],
+      startIndex: 0,
+      maxResults: 2,
+    })
+    expect(page.threads.map((t) => t.id)).toEqual(['Sent:1', 'Sent:2'])
+    expect(page.nextPageToken).toBe('2')
+  })
+
+  test('later pages do not skip older hits that were already fetched', () => {
+    const threads = [
+      { id: 'Sent:1', date: '2026-09-04T00:00:00.000Z' },
+      { id: 'INBOX:99', date: '2026-08-01T00:00:00.000Z' },
+      { id: 'Sent:2', date: '2026-08-31T00:00:00.000Z' },
+    ]
+    const first = pageThreadsByDate({ threads, startIndex: 0, maxResults: 2 })
+    const second = pageThreadsByDate({ threads, startIndex: Number(first.nextPageToken), maxResults: 2 })
+    expect(second.threads.map((t) => t.id)).toEqual(['INBOX:99'])
+    expect(second.nextPageToken).toBe(null)
   })
 })

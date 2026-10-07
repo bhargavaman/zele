@@ -87,7 +87,6 @@ const IMAP_IN_FOLDERS = new Set([
   'drafts',
   'draft',
   'archive',
-  'starred',
 ])
 
 export type ImapSearchCriteria = {
@@ -112,7 +111,7 @@ export function parseImapSearchQuery(
   const inMatch = query.match(/\bin:(\S+)/i)
   const inRaw = inMatch?.[1]?.toLowerCase()
   const inFolder = inRaw && IMAP_IN_FOLDERS.has(inRaw) ? inRaw : undefined
-  const starred = isStarred || inFolder === 'starred'
+  const starred = isStarred || inRaw === 'starred'
 
   const baseCriteria: ImapSearchCriteria = starred ? { flagged: true } : {}
   let searchCriteria: ImapSearchCriteria = { ...baseCriteria }
@@ -209,7 +208,14 @@ export function parseImapSearchQuery(
   return { inFolder, searchCriteria }
 }
 
-/** `mail search` has no folder, so hit Inbox and Sent. `in:` and `--folder` stay one mailbox. */
+function normalizeImapFolder(name: string) {
+  const lower = name.toLowerCase()
+  if (lower === 'draft') return 'drafts'
+  if (lower === 'bin') return 'trash'
+  return lower
+}
+
+/** `mail search` has no folder, so hit Inbox and Sent. `--folder` wins over `in:`. */
 export function imapSearchFolders({
   folder,
   inFolder,
@@ -217,9 +223,31 @@ export function imapSearchFolders({
   folder?: string
   inFolder?: string
 }): string[] {
-  if (inFolder) return [inFolder]
+  if (folder && inFolder) {
+    if (normalizeImapFolder(folder) !== normalizeImapFolder(inFolder)) return []
+    return [folder]
+  }
   if (folder) return [folder]
+  if (inFolder) return [inFolder]
   return ['inbox', 'sent']
+}
+
+export function pageThreadsByDate<T extends { date: string }>({
+  threads,
+  startIndex,
+  maxResults,
+}: {
+  threads: T[]
+  startIndex: number
+  maxResults: number
+}): { threads: T[]; nextPageToken: string | null } {
+  const sorted = [...threads].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  return {
+    threads: sorted.slice(startIndex, startIndex + maxResults),
+    nextPageToken: startIndex + maxResults < sorted.length
+      ? String(startIndex + maxResults)
+      : null,
+  }
 }
 
 /** Static fallback map from zele folder names to IMAP folder paths.
@@ -467,11 +495,11 @@ export class ImapSmtpClient {
       ? parseImapSearchQuery(query, { isStarred })
       : { inFolder: undefined, searchCriteria: isStarred ? { flagged: true } : { all: true } }
     const folders = imapSearchFolders({ folder, inFolder: parsedQuery.inFolder })
+    if (folders.length === 0) {
+      return { threads: [], rawThreads: [], nextPageToken: null }
+    }
     const startIndex = pageToken ? Number(pageToken) : 0
-    const singleFolder = folders.length === 1
-    // One mailbox: UID page. Inbox+Sent: newest start+limit UIDs each, then merge by date.
-    const uidOffset = singleFolder ? startIndex : 0
-    const uidLimit = singleFolder ? maxResults : startIndex + maxResults
+    const pageByDate = folders.length !== 1
 
     return this.withImap(async (client) => {
       const threads: ThreadListItem[] = []
@@ -491,11 +519,13 @@ export class ImapSmtpClient {
         try {
           const searchResult = await client.search(parsedQuery.searchCriteria, { uid: true })
           const uids = searchResult === false ? [] : [...searchResult].sort((a, b) => b - a)
-          const pageUids = uids.slice(uidOffset, uidOffset + uidLimit)
-          if (uids.length > uidOffset + uidLimit) moreUids = true
-          if (pageUids.length === 0) continue
+          const fetchUids = pageByDate
+            ? uids
+            : uids.slice(startIndex, startIndex + maxResults)
+          if (!pageByDate && uids.length > startIndex + maxResults) moreUids = true
+          if (fetchUids.length === 0) continue
           const specialUse = client.mailbox !== false ? client.mailbox.specialUse ?? undefined : undefined
-          for await (const msg of client.fetch(pageUids, {
+          for await (const msg of client.fetch(fetchUids, {
             uid: true,
             envelope: true,
             flags: true,
@@ -514,15 +544,20 @@ export class ImapSmtpClient {
         }
       }
 
+      if (pageByDate) {
+        const page = pageThreadsByDate({ threads, startIndex, maxResults })
+        return {
+          threads: page.threads,
+          rawThreads: [],
+          nextPageToken: page.nextPageToken,
+        }
+      }
+
       threads.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      const page = singleFolder ? threads : threads.slice(startIndex, startIndex + maxResults)
-      const hasMore = singleFolder
-        ? moreUids
-        : startIndex + maxResults < threads.length || moreUids
       return {
-        threads: page,
+        threads,
         rawThreads: [],
-        nextPageToken: hasMore ? String(startIndex + maxResults) : null,
+        nextPageToken: moreUids ? String(startIndex + maxResults) : null,
       }
     }) as Promise<ThreadListResult | AuthError | ApiError>
   }
