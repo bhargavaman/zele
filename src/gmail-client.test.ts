@@ -1,7 +1,7 @@
 // Tests for GmailClient parsing behavior used by TUI previews.
 // Captures entity/encoding regressions in snippet fields from Gmail metadata responses.
 
-import { expect, test, describe } from 'vitest'
+import { expect, test, describe, vi } from 'vitest'
 import { OAuth2Client } from 'googleapis-common'
 import {
   buildGmailMimeMessage,
@@ -368,6 +368,69 @@ describe('lookupLabel', () => {
   test('returns system label ids without calling Gmail', async () => {
     expect(await client.lookupLabel('INBOX')).toBe('INBOX')
     expect(await client.lookupLabel('SENT')).toBe('SENT')
+  })
+})
+
+describe('label resolution with a stale labels cache', () => {
+  type RawLabel = { id: string; name: string; type: string }
+  const freshLabels: RawLabel[] = [
+    { id: 'Label_1', name: 'Work', type: 'user' },
+    { id: 'Label_2', name: 'Personal', type: 'user' },
+  ]
+  const staleLabels: RawLabel[] = [{ id: 'Label_9', name: 'Old', type: 'user' }]
+
+  // Fake Gmail API + a stale 30-minute cache; account stays null so no DB is touched.
+  function setup() {
+    const c = new GmailClient({ auth: new OAuth2Client() })
+    const list = vi.fn(async () => ({ data: { labels: freshLabels } }))
+    const create = vi.fn(async ({ requestBody }: { requestBody: { name: string } }) => ({
+      data: { id: 'Label_99', name: requestBody.name },
+    }))
+    ;(c as any).gmail = { users: { labels: { list, create } } }
+    vi.spyOn(c as any, 'getCachedLabels').mockResolvedValue(staleLabels)
+    return { c, list, create }
+  }
+
+  test('lookupLabel finds a label missing from the stale cache by name', async () => {
+    const { c, list } = setup()
+    expect(await c.lookupLabel('work')).toBe('Label_1')
+    expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  test('lookupLabel matches a Gmail label ID', async () => {
+    const { c } = setup()
+    expect(await c.lookupLabel('Label_2')).toBe('Label_2')
+  })
+
+  test('lookupLabel returns null when the label is missing live too', async () => {
+    const { c } = setup()
+    expect(await c.lookupLabel('Nope')).toBeNull()
+  })
+
+  test('lookupLabel does not hit the API when the cache already has the label', async () => {
+    const { c, list } = setup()
+    expect(await c.lookupLabel('Old')).toBe('Label_9')
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  test('resolveLabel never creates a label for a name that exists live', async () => {
+    const { c, create } = setup()
+    expect(await c.resolveLabel('Personal')).toBe('Label_2')
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  test('resolveLabel never creates a literal label from an unknown label ID', async () => {
+    const { c, create } = setup()
+    const result = await c.resolveLabel('Label_12')
+    expect(result).toBeInstanceOf(Error)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  test('resolveLabel still auto-creates a genuinely new name', async () => {
+    const { c, create } = setup()
+    expect(await c.resolveLabel('travel')).toBe('Label_99')
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(create.mock.calls[0]![0].requestBody.name).toBe('Travel')
   })
 })
 
