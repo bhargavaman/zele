@@ -1557,6 +1557,27 @@ export class GmailClient {
     }
   }
 
+  async renameLabel({ labelId, name }: { labelId: string; name: string }): Promise<{ id: string; name: string } | AuthError | ApiError> {
+    const res = await gmailBoundary(this.account?.email ?? 'unknown', () =>
+      withRetry(() =>
+        this.gmail.users.labels.patch({
+          userId: 'me',
+          id: labelId,
+          requestBody: { name },
+        }),
+      ),
+    )
+    if (res instanceof Error) return res
+
+    this.labelIdCache = {}
+    await this.invalidateLabels()
+
+    return {
+      id: res.data.id ?? labelId,
+      name: res.data.name ?? name,
+    }
+  }
+
   async deleteLabel({ labelId }: { labelId: string }) {
     await withRetry(() =>
       this.gmail.users.labels.delete({
