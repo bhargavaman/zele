@@ -32,6 +32,38 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Keep MIME bytes intact until transfer decoding is complete and the charset is known.
+export function decodeQuotedPrintable(content: string): Buffer {
+  const softBreakStripped = content.replace(/=\r?\n/g, '')
+  const bytes: number[] = []
+
+  for (let i = 0; i < softBreakStripped.length; i++) {
+    const ch = softBreakStripped[i]!
+    if (ch === '=') {
+      const hex = softBreakStripped.slice(i + 1, i + 3)
+      if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16))
+        i += 2
+        continue
+      }
+    }
+    bytes.push(softBreakStripped.charCodeAt(i))
+  }
+  return Buffer.from(bytes)
+}
+
+export function decodeBodyCharset(body: Buffer, charset: string | undefined): string {
+  const decoder = errore.tryFn({
+    try: () => new TextDecoder(charset ?? 'utf-8'),
+    catch: (cause) => new ApiError({ reason: `Unsupported MIME charset: ${charset}`, cause }),
+  })
+  if (decoder instanceof Error) {
+    console.warn(`${decoder.message}; decoding as UTF-8`)
+    return body.toString('utf-8')
+  }
+  return decoder.decode(body)
+}
+
 /** TLS options from stored CA / insecure flags. */
 export function tlsSocketOptions(creds: { ca?: string; insecure?: boolean }): { ca?: string[]; rejectUnauthorized?: boolean } | undefined {
   if (!creds.ca && !creds.insecure) return undefined
@@ -1633,7 +1665,7 @@ export class ImapSmtpClient {
 
     if (msg.source) {
       const source = msg.source.toString('utf-8')
-      const bodyResult = this.extractBodyFromSource(source)
+      const bodyResult = this.extractBodyFromSource(msg.source.toString('latin1'))
       body = bodyResult.body
       mimeType = bodyResult.mimeType
       textBody = bodyResult.textBody
@@ -1713,11 +1745,8 @@ export class ImapSmtpClient {
     }
 
     // Single-part body
-    let decoded = this.decodeTransferEncoding(bodyContent, transferEncoding)
     const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i)
-    if (charsetMatch) {
-      // Already UTF-8 string, but note the charset for future handling
-    }
+    const decoded = decodeBodyCharset(this.decodeTransferEncoding(bodyContent, transferEncoding), charsetMatch?.[1])
 
     const isHtml = contentType.toLowerCase().includes('text/html')
     return {
@@ -1754,7 +1783,8 @@ export class ImapSmtpClient {
         continue
       }
 
-      const decoded = this.decodeTransferEncoding(partBody, partEncoding)
+      const charsetMatch = partContentType.match(/charset="?([^";\s]+)"?/i)
+      const decoded = decodeBodyCharset(this.decodeTransferEncoding(partBody, partEncoding), charsetMatch?.[1])
 
       if (partContentType.toLowerCase().includes('text/html')) {
         htmlBody = decoded
@@ -1769,17 +1799,15 @@ export class ImapSmtpClient {
     return { body: '', mimeType: 'text/plain', textBody: null }
   }
 
-  private decodeTransferEncoding(content: string, encoding: string): string {
+  private decodeTransferEncoding(content: string, encoding: string): Buffer {
     const enc = encoding.toLowerCase().trim()
     if (enc === 'base64') {
-      return Buffer.from(content.replace(/\s/g, ''), 'base64').toString('utf-8')
+      return Buffer.from(content.replace(/\s/g, ''), 'base64')
     }
     if (enc === 'quoted-printable') {
-      return content
-        .replace(/=\r?\n/g, '') // Soft line breaks
-        .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      return decodeQuotedPrintable(content)
     }
-    return content
+    return Buffer.from(content, 'latin1')
   }
 
   private getHeader(headers: string, name: string): string | undefined {

@@ -248,6 +248,7 @@ zele draft delete <draft-id>
 zele label list
 zele label counts
 zele label create <name>
+zele label rename <label-id> <name>
 zele label delete <label-id>
 ```
 
