@@ -151,6 +151,17 @@ zele mail send --to bob@example.com --subject "Question" --body "Hey, can you ch
 zele mail watch --filter "is:unread from:bob subject:Re:Question" --timeout 600
 ```
 
+**Body formatting.** Write each paragraph as **one line**. Separate paragraphs with one blank line. Never hard-wrap lines at 72-80 columns: mail clients reflow text themselves, and hard breaks show up as broken mid-sentence lines. Capitalize the first word of every paragraph, also after a greeting that ends with a comma. These rules also apply to drafts you show the user before sending.
+
+```bash
+zele mail send --to bob@example.com --subject "Meeting" --body "Hi Bob,
+
+Can we move tomorrow's meeting to 3pm? I have a conflict in the morning and want to keep the full hour.
+
+Thanks,
+Alice"
+```
+
 ### Mail actions
 
 ```bash

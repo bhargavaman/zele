@@ -79,3 +79,14 @@ The README and `zele --help` output are the source of truth for commands, option
     ```
     Never pass `--force` to skip this unless the user explicitly asks to send without reading.
 10. **Send into an existing thread** with `zele mail send --thread-id <thread-id>` when you need full control of recipients and subject but still want correct `In-Reply-To`/`References` headers. Recipients and subject are inferred from the thread when omitted. The same read-before-reply rule applies.
+11. **Format email bodies like a human wrote them.** These rules apply to `--body` and to every draft you show the user for approval:
+    - **Never hard-wrap.** Write each paragraph as one line. Separate paragraphs with one blank line. Do not break lines at 72-80 columns: mail clients wrap text themselves, and hard breaks render as lines broken mid-sentence. Show drafts exactly as they will be sent.
+    - **Capitalize the first word of every paragraph**, also after a greeting that ends with a comma. Write `Buongiorno,` then `Sono Tommaso...`, not `sono Tommaso...`. Same in English: `Hi Bob,` then `Can we...`.
+    ```
+    Buongiorno,
+
+    Sono Tommaso De Rossi e vorrei prenotare una visita presso la vostra sede di Genova. Potreste indicarmi le prime date disponibili?
+
+    Grazie mille!
+    Tommaso De Rossi
+    ```
