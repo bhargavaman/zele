@@ -1,0 +1,101 @@
+{
+  "name": "zele",
+  "version": "0.9.0",
+  "description": "Email & Calendar CLI — Gmail, IMAP/SMTP, Google Calendar from your terminal",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": "./dist/cli.js",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./src": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./src/*": {
+      "types": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun run tsc",
+    "prepublishOnly": "cp ../README.md README.md && rm -rf skills && cp -r ../skills skills && bun run build",
+    "dev": "bun src/cli.ts",
+    "zele": "bun src/cli.ts",
+    "tsc": "tsc",
+    "test": "vitest"
+  },
+  "keywords": [
+    "gmail",
+    "cli",
+    "email"
+  ],
+  "author": "remorses",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/remorses/zele",
+    "directory": "zele"
+  },
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.2.0",
+    "@googleapis/gmail": "^16.1.1",
+    "@opentui/core": "^0.2.12",
+    "@opentui/react": "^0.2.12",
+    "@termcast/utils": "^2.2.8",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "email-addresses": "^5.0.0",
+    "email-reply-parser": "^2.3.5",
+    "errore": "^0.11.0",
+    "fkill": "^10.0.3",
+    "goke": "^6.15.1",
+    "google-auth-library": "^10.5.0",
+    "googleapis-common": "^8.0.1",
+    "imapflow": "^1.2.18",
+    "js-yaml": "^4.1.1",
+    "mimetext": "^3.0.28",
+    "mrmime": "^2.0.1",
+    "nodemailer": "^8.0.4",
+    "react": "^19.2.4",
+    "remark": "^15.0.1",
+    "termcast": "^1.8.0",
+    "ts-ics": "^2.4.0",
+    "tsdav": "^2.1.7",
+    "turndown": "^7.2.0",
+    "zod": "^4.3.6"
+  },
+  "commands": [
+    {
+      "name": "mail-tui",
+      "title": "Mail",
+      "description": "Browse and read emails",
+      "mode": "view"
+    }
+  ],
+  "devDependencies": {
+    "@types/email-addresses": "^3.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.2.0",
+    "@types/nodemailer": "^8.0.0",
+    "@types/react": "^19.1.2",
+    "@types/turndown": "^5.0.5",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "tsx": "^4.19.4",
+    "tuistory": "^0.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "skills"
+  ]
+}

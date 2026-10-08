@@ -4,7 +4,7 @@ the TUI (the root command) is only supported in bun. our bin file tries to use b
 
 ## development
 
-to run the cli locally use `bun src/cli.ts`
+to run the cli locally use `bun zele/src/cli.ts` (or `bun src/cli.ts` inside `zele/`). this repo is a bun workspace: `zele/` is the CLI package
 
 ## live testing on real accounts
 
@@ -22,7 +22,7 @@ do not add manual type annotations to `.action(async ...)` parameters in goke co
 
 ## type guards
 
-prefer shared generic guards over inline complex filter predicates. use `isTruthy` from `src/api-utils.ts` in `Array.filter()` chains when removing nullable placeholders to keep code readable and type narrowing predictable.
+prefer shared generic guards over inline complex filter predicates. use `isTruthy` from `zele/src/api-utils.ts` in `Array.filter()` chains when removing nullable placeholders to keep code readable and type narrowing predictable.
 
 ## tui
 
@@ -42,7 +42,7 @@ Use Drizzle + `node:sqlite` (`DatabaseSync`). Do not use Prisma or `@libsql/clie
 
 Do not add `.limit(1)` on drizzle `update`/`delete`. `node:sqlite` is not built with `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`. Node throws `near "limit": syntax error`. Bun hides it.
 
-Schema lives in `src/schema.ts`. Table and column names must match the existing file (PascalCase tables, camelCase columns). Runtime DDL is `src/schema.sql`, applied on startup.
+Schema lives in `zele/src/schema.ts`. Table and column names must match the existing file (PascalCase tables, camelCase columns). Runtime DDL is `zele/src/schema.sql`, applied on startup.
 
 Tables:
 - `Account`: OAuth / IMAP tokens per email + appId
@@ -57,7 +57,7 @@ After completing a fix or feature, add a `.changeset/*.md` file at the repo root
 
 ## migrations
 
-`src/db.ts` runs `src/schema.sql` on startup (idempotent migration) so new tables/indexes are applied automatically on each CLI process start.
+`zele/src/db.ts` runs `zele/src/schema.sql` on startup (idempotent migration) so new tables/indexes are applied automatically on each CLI process start.
 
 ## error handling
 
@@ -76,8 +76,8 @@ read the errore best practices and skill before writing any error handling code:
 - **check with instanceof** at the call site: `if (result instanceof Error) handleCommandError(result)`.
 - **use `instanceof Error`** (base class) when you want to catch any domain error. use `instanceof AuthError` etc. when you need specific handling.
 - **use `errore.unwrap()`** at entry points where failure is fatal (login, migration).
-- **define tagged error classes** in `src/api-utils.ts` using `errore.createTaggedError()` with `$variable` interpolation.
-- **use `handleCommandError()`** from `src/output.ts` in command files instead of manual `out.error()` + `process.exit(1)`.
+- **define tagged error classes** in `zele/src/api-utils.ts` using `errore.createTaggedError()` with `$variable` interpolation.
+- **use `handleCommandError()`** from `zele/src/output.ts` in command files instead of manual `out.error()` + `process.exit(1)`.
 - **never string-match error messages**. use instanceof narrowing instead. the only exception is `isAuthLikeError()` which translates external library exceptions at the boundary.
 
 ### errore.try is only for external code
