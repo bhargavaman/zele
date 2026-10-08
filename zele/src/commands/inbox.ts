@@ -211,7 +211,7 @@ export function registerInboxCommands(cli: ZeleCli) {
   cli
     .command(
       'inbox create [name]',
-      'Create a receive-only name@zele.sh inbox (max 10 per owner). Owners sign in with a @gmail.com address',
+      'Create a free, permanent name@zele.sh address (receive-only for now, max 10 per owner). Owners sign in with a @gmail.com address',
     )
     .option('--owner [email]', z.string().optional().describe('Your @gmail.com address that owns the inboxes, used to sign in first if needed'))
     .option('--code [code]', z.string().optional().describe('Sign-in code from the zele.sh email (skips auto-read)'))

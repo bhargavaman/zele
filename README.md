@@ -9,7 +9,7 @@
 
 ## Install
 
-Multi-account email and calendar client supporting **Google OAuth**, **Microsoft OAuth** (Outlook / Hotmail), and **IMAP/SMTP** (Fastmail, any provider). SQLite cache, YAML output.
+Multi-account email and calendar client supporting **Google OAuth**, **Microsoft OAuth** (Outlook / Hotmail), **IMAP/SMTP** (Fastmail, any provider), and free **@zele.sh** addresses. SQLite cache, YAML output.
 
 All CLI commands work with **Node.js** (v22.16+). The interactive TUI (`zele` with no subcommand) requires [Bun](https://bun.sh) and will auto-spawn it if available.
 
@@ -110,7 +110,7 @@ For self-signed servers, prefer `--ca <path>` to trust a PEM certificate (Proton
 
 ### Free @zele.sh inboxes (receive only)
 
-Create up to **10 free `@zele.sh` addresses** for signups, newsletters, verification codes, and agents. They are receive-only for now. The **owner** is your **@gmail.com** address (no temp-mail, no custom domains).
+Get up to **10 free, permanent `@zele.sh` addresses**: a real email address for you, a project, or each of your agents. They keep your mail until you delete it. They are receive-only for now; sending is planned. The **owner** is your **@gmail.com** address (other domains are not accepted, to keep bots out).
 
 ```bash
 zele login zele --owner you@gmail.com --name tommy   # sign in + create tommy@zele.sh

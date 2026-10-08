@@ -11,8 +11,8 @@ description: >
   load this skill when the user asks to check email, read/send messages,
   reply or forward, archive or trash threads, manage drafts or labels,
   download attachments, schedule meetings, check their calendar, RSVP
-  to events, create a free @zele.sh inbox (receive-only email address for
-  signups, verification codes, or agents), or when they run any `zele`
+  to events, create a free permanent @zele.sh email address (receive-only
+  for now) for themselves, a project, or an agent, or when they run any `zele`
   command. Load it before writing
   any code or shell commands that touch zele so you know the correct
   subcommand structure, the Google vs IMAP feature matrix, the headless
@@ -92,7 +92,7 @@ The README and `zele --help` output are the source of truth for commands, option
     Grazie mille!
     Tommaso De Rossi
     ```
-12. **Free `@zele.sh` inboxes (receive only).** Use them when the user wants a throwaway or dedicated address for signups, newsletters, verification codes, or an agent. Each owner (a **@gmail.com** address, no other domains) gets up to **10** inboxes. They work like any account with `--account name@zele.sh` for list, read, search, watch, star, archive, trash and attachments. Sending, drafts and labels fail with a receive-only error.
+12. **Free `@zele.sh` addresses (receive only for now).** These are permanent, real addresses, not throwaway ones: use them when the user wants a new address for themselves, a project, or an agent. Mail stays until the user deletes it. Each owner (a **@gmail.com** address, no other domains) gets up to **10** inboxes. They work like any account with `--account name@zele.sh` for list, read, search, watch, star, archive, trash and attachments. Sending, drafts and labels fail with a receive-only error.
     ```bash
     # 1. pick the owner: a @gmail.com account from `zele whoami` (type: google).
     #    The sign-in code is then read from that Gmail automatically.

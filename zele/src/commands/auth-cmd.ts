@@ -81,7 +81,7 @@ export function registerAuthCommands(cli: ZeleCli) {
           options: [
             { value: 'google', label: 'Google', hint: 'opens browser for OAuth' },
             { value: 'microsoft', label: 'Outlook / Hotmail', hint: 'opens browser for Microsoft OAuth' },
-            { value: 'zele', label: 'zele.sh inbox', hint: 'free receive-only @zele.sh address, owned by your Gmail' },
+            { value: 'zele', label: 'zele.sh inbox', hint: 'free permanent @zele.sh address, owned by your Gmail' },
             { value: 'imap', label: 'Other', hint: 'IMAP/SMTP with password' },
           ],
         })
