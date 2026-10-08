@@ -59,7 +59,7 @@
     "goke": "^6.15.1",
     "google-auth-library": "^10.5.0",
     "googleapis-common": "^8.0.1",
-    "imapflow": "^1.2.18",
+    "imapflow": "^2.2.10",
     "js-yaml": "^4.1.1",
     "mimetext": "^3.0.28",
     "mrmime": "^2.0.1",
