@@ -92,6 +92,11 @@ function makeThreadId(folder: string, uid: number): string {
   return `${folder}:${uid}`
 }
 
+function formatEnvelopeDate(date: Date | string | undefined): string {
+  if (!date) return new Date().toISOString()
+  return (typeof date === 'string' ? new Date(date) : date).toISOString()
+}
+
 function isSentFolder(folder: string): boolean {
   const normalized = folder.toLowerCase()
   return (FOLDER_FALLBACKS.sent ?? []).some((candidate) => candidate.toLowerCase() === normalized)
@@ -550,7 +555,7 @@ export class ImapSmtpClient {
         const { path, lock } = resolved
         try {
           const searchResult = await client.search(parsedQuery.searchCriteria, { uid: true })
-          const uids = searchResult === false ? [] : [...searchResult].sort((a, b) => b - a)
+          const uids = [...(searchResult || [])].sort((a, b) => b - a)
           const fetchUids = pageByDate
             ? uids
             : uids.slice(startIndex, startIndex + maxResults)
@@ -1047,7 +1052,7 @@ export class ImapSmtpClient {
       const lock = await client.getMailboxLock(junkPath)
       try {
         const searchResult = await client.search({ all: true }, { uid: true })
-        const uids = searchResult === false ? [] : searchResult
+        const uids = searchResult || []
         if (uids.length === 0) return { count: 0 }
         // Move all to Trash
         const uidRange = uids.join(',')
@@ -1164,7 +1169,7 @@ export class ImapSmtpClient {
       const lock = await client.getMailboxLock(imapFolder)
       try {
         const searchResult = await client.search({ all: true }, { uid: true })
-        const uids = searchResult === false ? [] : searchResult
+        const uids = searchResult || []
         return uids.length > 0 ? Math.max(...uids) : 0
       } finally {
         lock.release()
@@ -1180,7 +1185,7 @@ export class ImapSmtpClient {
         try {
           // Search for UIDs > lastUid
           const searchResult = await client.search({ uid: `${lastUid + 1}:*` }, { uid: true })
-          const uids = searchResult === false ? [] : searchResult
+          const uids = searchResult || []
           const newUids = uids.filter((u) => u > lastUid)
 
           const events: WatchEvent[] = []
@@ -1238,7 +1243,7 @@ export class ImapSmtpClient {
       try {
         const searchCriteria = query ? { or: [{ subject: query }, { body: query }] } : { all: true }
         const searchResult = await client.search(searchCriteria as any, { uid: true })
-        const uids = searchResult === false ? [] : searchResult
+        const uids = searchResult || []
 
         const sorted = [...uids].sort((a, b) => b - a)
         const startIndex = pageToken ? Number(pageToken) : 0
@@ -1258,7 +1263,7 @@ export class ImapSmtpClient {
               id: makeThreadId(draftsPath, msg.uid),
               subject: env.subject ?? '(no subject)',
               to: (env.to ?? []).map((a) => a.address ?? '').filter(Boolean),
-              date: env.date?.toISOString() ?? new Date().toISOString(),
+              date: formatEnvelopeDate(env.date),
             })
           }
         }
@@ -1581,7 +1586,7 @@ export class ImapSmtpClient {
       from: toSender(env.from?.[0]),
       to: toSenders(env.to),
       cc: toSenders(env.cc),
-      date: env.date?.toISOString() ?? new Date().toISOString(),
+      date: formatEnvelopeDate(env.date),
       labelIds: sent ? ['SENT'] : [],
       unread: !flags.has('\\Seen'),
       starred: flags.has('\\Flagged'),
@@ -1703,7 +1708,7 @@ export class ImapSmtpClient {
           .filter(Boolean)
           .join(', ') || undefined
       ),
-      date: env.date?.toISOString() ?? new Date().toISOString(),
+      date: formatEnvelopeDate(env.date),
       labelIds: isSent ? ['SENT'] : [],
       unread: !flags.has('\\Seen'),
       starred: flags.has('\\Flagged'),
