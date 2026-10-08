@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.10.0
+
+1. **Free, permanent `@zele.sh` email addresses** (receive-only for now). Sign in with a @gmail.com owner and create up to 10 addresses for yourself, a project, or your agents:
+
+   ```bash
+   zele login zele --owner you@gmail.com --name tommy
+   zele inbox create bills
+   zele inbox list
+   zele mail list --account tommy@zele.sh
+   ```
+
+   The sign-in code is read automatically from the owner Gmail when it is already a zele account; otherwise pass `--code`. Each inbox works with `mail list`, `mail read`, `mail search`, `mail watch`, star, archive, trash, spam, and attachments. Sending, drafts, and labels return a clear "receive-only" error. `zele logout zele` signs out and removes the inbox accounts from this machine.
+
+2. **`mail watch` is now the way to wait for a reply after sending** — `mail send` and `mail reply` print the exact watch command to run next:
+
+   ```bash
+   zele mail send --to bob@example.com --subject "Question" --body "Hey"
+   # Wait for the reply: zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
+   ```
+
+   - `mail watch` prints how long it waited: an `elapsed` field on the match, `Timed out after 3d 0h 0m 0s` on timeout, and `# Still watching, 3m 0s elapsed` on stderr every minute
+   - `mail watch` no longer exits on a network error. It prints `# Poll failed ..., retrying` and polls again, so a watch can run for days. Auth errors still stop it
+
+3. **Fixed `mail watch` on Gmail returning an old email as a match** — it reused a history cursor from an earlier run and replayed emails that arrived since then. Now only emails that arrive after the command starts can match, same as IMAP.
+
 ## 0.9.0
 
 1. **Proton Mail Bridge and self-signed IMAP/SMTP servers** — `login imap` now works with local TLS endpoints that use their own certificate:
