@@ -12,3 +12,4 @@ tmp
 # copied from repo root at publish time
 zele/README.md
 zele/skills/
+.wrangler/

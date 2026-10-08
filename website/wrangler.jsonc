@@ -1,0 +1,70 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "zele-website",
+  "main": "./src/server.tsx",
+  "workers_dev": true,
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+
+  // ── Production (top-level) ──────────────────────────────────────────
+  // DB: better-auth tables + inbox registry (address -> owner, max 10 per owner).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zele-db",
+      "database_id": "78d30d60-d758-4681-aea5-f5c32184f3ab",
+      "migrations_dir": "./drizzle",
+      "migrations_pattern": "./drizzle/*/migration.sql"
+    }
+  ],
+  // MAIL: raw received emails, gzipped. Key: <userId>/<inbox>/<messageId>.eml.gz
+  "r2_buckets": [{ "binding": "MAIL", "bucket_name": "zele-mail" }],
+  // INBOX_STORE: one SQLite Durable Object per owner (idFromName(userId)) with message pointers.
+  "durable_objects": {
+    "bindings": [{ "name": "INBOX_STORE", "class_name": "InboxStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InboxStore"] }],
+  // OTP mails only. Never used for user content.
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["noreply@zele.sh"] }],
+  "ratelimits": [
+    { "name": "OTP_EMAIL_LIMITER", "namespace_id": "2001", "simple": { "limit": 2, "period": 60 } },
+    { "name": "OTP_IP_LIMITER", "namespace_id": "2002", "simple": { "limit": 5, "period": 60 } }
+  ],
+  "vars": { "BETTER_AUTH_URL": "https://zele.sh" },
+  "secrets": { "required": ["BETTER_AUTH_SECRET"] },
+  "routes": [
+    { "pattern": "zele.sh", "custom_domain": true },
+    { "pattern": "www.zele.sh", "custom_domain": true }
+  ],
+
+  // ── Preview ─────────────────────────────────────────────────────────
+  // Bindings are not inherited; routes are, so preview overrides them.
+  "env": {
+    "preview": {
+      "name": "zele-website-preview",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "zele-preview-db",
+          "database_id": "a2cab771-5cfa-42b0-ab76-885137b84f8a",
+          "migrations_dir": "./drizzle",
+          "migrations_pattern": "./drizzle/*/migration.sql"
+        }
+      ],
+      "r2_buckets": [{ "binding": "MAIL", "bucket_name": "zele-mail-preview" }],
+      "durable_objects": {
+        "bindings": [{ "name": "INBOX_STORE", "class_name": "InboxStore" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InboxStore"] }],
+      "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["noreply@zele.sh"] }],
+      "ratelimits": [
+        { "name": "OTP_EMAIL_LIMITER", "namespace_id": "2003", "simple": { "limit": 2, "period": 60 } },
+        { "name": "OTP_IP_LIMITER", "namespace_id": "2004", "simple": { "limit": 5, "period": 60 } }
+      ],
+      "vars": { "BETTER_AUTH_URL": "https://preview.zele.sh" },
+      "secrets": { "required": ["BETTER_AUTH_SECRET"] },
+      "routes": [{ "pattern": "preview.zele.sh", "custom_domain": true }]
+    }
+  }
+}

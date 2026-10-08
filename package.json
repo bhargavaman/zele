@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "zele"
+    "zele",
+    "website"
   ],
   "scripts": {
     "build": "bun run --filter zele build",

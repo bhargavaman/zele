@@ -1,0 +1,42 @@
+{
+  "name": "website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run db:migrate:local && FORCE_COLOR=1 vite dev --port 8077",
+    "build": "FORCE_COLOR=1 vite build",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "types": "wrangler types",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "CI=1 wrangler d1 migrations apply DB --local",
+    "db:migrate:preview": "echo \"D1 pre-migration timestamp: $(date +%s)\" && CI=1 wrangler d1 migrations apply DB --remote --env preview",
+    "db:migrate:prod": "echo \"D1 pre-migration timestamp: $(date +%s)\" && CI=1 wrangler d1 migrations apply DB --remote",
+    "deploy": "bun run db:migrate:preview && tsc && CLOUDFLARE_ENV=preview vite build && wrangler deploy --env preview",
+    "deploy:prod": "bun run db:migrate:prod && tsc && vite build && wrangler deploy"
+  },
+  "dependencies": {
+    "@holocron.so/vite": "0.36.0",
+    "better-auth": "1.7.7",
+    "better-auth-drizzle-adapter": "1.2.1",
+    "drizzle-orm": "1.0.0-beta.22",
+    "postal-mime": "^4.0.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "spiceflow": "1.26.0-rsc.18",
+    "ulid": "3.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.63.0",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "1.0.0-beta.22",
+    "typescript": "5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.148.0"
+  }
+}

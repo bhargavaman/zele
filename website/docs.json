@@ -1,0 +1,35 @@
+{
+  "$schema": "https://holocron.so/docs.json",
+  "name": "zele",
+  "description": "Email and calendar CLI for Gmail, Outlook, IMAP/SMTP, and Google Calendar. For you and your agents.",
+  "colors": {
+    "primary": "#2563eb",
+    "light": "#2563eb",
+    "dark": "#60a5fa"
+  },
+  "knownPaths": ["/api/*"],
+  "decorativeLines": "none",
+  "layout": {
+    "mode": "compact"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "icon": "lucide:rocket",
+        "pages": ["index"]
+      }
+    ],
+    "global": {
+      "anchors": [
+        { "anchor": "GitHub", "icon": "lucide:github", "href": "https://github.com/remorses/zele" },
+        { "anchor": "Changelog", "icon": "lucide:newspaper", "href": "https://github.com/remorses/zele/releases" }
+      ]
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/remorses/zele"
+    }
+  }
+}
