@@ -4,7 +4,8 @@ description: >
   zele is a multi-account email and calendar CLI for Gmail, IMAP/SMTP
   (Fastmail, Outlook, any provider), and Google Calendar. It reads,
   searches, sends, replies, forwards, archives, stars, and trashes emails,
-  manages drafts, labels, attachments, and Gmail filters, and creates,
+  waits for replies with `zele mail watch` (use it after sending instead
+  of ending the turn or sleeping), manages drafts, labels, attachments, and Gmail filters, and creates,
   updates, and deletes calendar events with RSVP and free/busy support.
   Output is YAML so commands can be piped through yq and xargs. ALWAYS
   load this skill when the user asks to check email, read/send messages,
@@ -47,19 +48,18 @@ The README and `zele --help` output are the source of truth for commands, option
    ```
 5. **Google-only features** (labels, Gmail filters, `zele cal *`, full profile) fail on IMAP accounts with a clear error. Check `zele whoami` output for account type before using them.
 6. **Headless Google login** requires a tmux wrapper because `zele login` is interactive. See the README "Remote / headless login" section for the exact pattern.
-7. **Waiting for emails** with `zele mail watch`. It polls for new emails matching a filter and exits as soon as one arrives. Use this to wait for replies, verification codes, or any expected email:
+7. **After sending, wait for the reply with `zele mail watch`.** Do not end your turn and do not `sleep`. `mail send` and `mail reply` print the exact command to run next, like `# Wait for the reply: zele mail watch --account ... --filter '...' --timeout 259200`. Run it right away. It blocks until the first **new** email matching the filter arrives (only emails that arrive after it starts can match), prints it with an `elapsed` field, and exits:
    ```bash
-   # wait for a reply from alice (no timeout, blocks until match)
-   zele mail watch --filter "is:unread from:alice@example.com"
-
-   # wait for a verification code with a 5-minute timeout
-   zele mail watch --filter "is:unread subject:verification" --timeout 300
-
-   # send an email then wait for the reply
    zele mail send --to bob@example.com --subject "Question" --body "Hey, can you check this?"
-   zele mail watch --filter "is:unread from:bob@example.com subject:Re:Question" --timeout 600
+   zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
+   # match: exit 0, then read it before answering
+   zele mail read <thread_id from the watch output>
    ```
-   If the matched email wasn't the expected one, call `zele mail watch` again with a more specific filter. Exit code 0 means a match was found, exit code 1 means timeout.
+   - Exit 0 means a match. Exit 1 means timeout (`Timed out after 3d 0h 0m 0s ...`). On timeout, run watch again or tell the user nobody replied yet.
+   - `--timeout 259200` is 3 days. People can take days to answer. Disable your shell tool timeout (e.g. `timeout: 0`) or set it **longer** than `--timeout`, or the tool kills the wait first. Every minute watch prints `# Still watching, 3m 0s elapsed` to stderr.
+   - Network errors do not stop the watch. It prints `# Poll failed ..., retrying` and polls again. Only auth errors stop it.
+   - If the matched email is not the expected one, run watch again with a more specific filter.
+   - Also use it for verification codes or any expected email: `zele mail watch --filter 'subject:verification' --timeout 300`.
 8. **Check reply recipients before sending** with `zele mail reply <thread-id> --dry-run`. Recipients are inferred from the thread, not from the sender of the last message, so a thread whose last message you sent still replies to the other person. If a reply would only reach the account's own address, zele refuses to send:
    ```bash
    # see to / cc / subject / In-Reply-To without sending

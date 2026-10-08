@@ -144,11 +144,14 @@ Use `mail send --thread-id` when you want full control over recipients and subje
 zele mail send --thread-id <thread-id> --to paul@acme.com --cc dana@acme.com --body "…"
 ```
 
-`mail watch` blocks until the first email matching the filter arrives, prints it, and exits (code 0). If `--timeout` is set and no match arrives in time, it exits with code 1. This is useful for agents that need to send an email and then wait for the reply:
+`mail watch` blocks until the first **new** email matching the filter arrives, prints it with the `elapsed` wait time, and exits (code 0). Only emails that arrive after it starts can match. If `--timeout` is set and no match arrives in time, it exits with code 1. While waiting it prints `# Still watching, 3m 0s elapsed` to stderr every minute. Network errors do not stop it; it retries on the next poll, so waiting days (`--timeout 259200`) is fine.
+
+Agents should run it **right after** `mail send` or `mail reply` to wait for the answer, instead of ending their turn or sleeping. Both commands print the exact watch command to run:
 
 ```bash
 zele mail send --to bob@example.com --subject "Question" --body "Hey, can you check this?"
-zele mail watch --filter "is:unread from:bob subject:Re:Question" --timeout 600
+# Wait for the reply: zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
+zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
 ```
 
 **Body formatting.** Write each paragraph as **one line**. Separate paragraphs with one blank line. Never hard-wrap lines at 72-80 columns: mail clients reflow text themselves, and hard breaks show up as broken mid-sentence lines. Capitalize the first word of every paragraph, also after a greeting that ends with a comma. These rules also apply to drafts you show the user before sending.

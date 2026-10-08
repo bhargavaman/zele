@@ -2158,7 +2158,7 @@ export class GmailClient {
    * Poll for new messages using the Gmail History API.
    * Yields WatchEvent objects as new messages arrive.
    * Handles history seeding, expiry re-seeding, and client-side query filtering.
-   * Persists historyId in the DB so it survives across CLI invocations.
+   * Only messages added after the call starts are yielded.
    */
   async *watchInbox({
     folder = 'inbox',
@@ -2178,14 +2178,11 @@ export class GmailClient {
       throw new NotFoundError({ resource: `watch folder "${folder}". Supported: ${Object.keys(WATCH_FOLDER_LABELS).join(', ')}` })
     }
 
-    // Seed historyId — guaranteed non-undefined after this block
-    let historyId: string = await getLastHistoryId(this.account) ?? ''
-    if (!historyId) {
-      const profile = await this.getProfile()
-      if (profile instanceof Error) throw profile
-      historyId = profile.historyId
-      await setLastHistoryId(this.account, historyId)
-    }
+    // Seed from the current mailbox state on every run. A cursor persisted
+    // from an earlier run would replay old emails as "new" matches.
+    const seed = await this.getProfile()
+    if (seed instanceof Error) throw seed
+    let historyId = seed.historyId
 
     while (!signal?.aborted) {
       // listHistory returns errors as values — check and handle history expiry.
@@ -2195,13 +2192,15 @@ export class GmailClient {
         historyTypes: ['messageAdded'],
       })
 
-      if (historyResult instanceof Error) {
-        if (!isHistoryExpired(historyResult)) throw historyResult
+      if (historyResult instanceof AuthError) throw historyResult
+      if (historyResult instanceof Error && !isHistoryExpired(historyResult)) {
+        // Network blips must not end a watch that can run for days. Retry next tick.
+        console.error(`# Poll failed for ${this.account.email}, retrying: ${historyResult.message}`)
+      } else if (historyResult instanceof Error) {
         // historyId expired — Google only keeps ~7 days. Re-seed.
         const profile = await this.getProfile()
         if (profile instanceof Error) throw profile
         historyId = profile.historyId
-        await setLastHistoryId(this.account, historyId)
         // Retry once after reseed
         const retryResult = await this.listHistory({ startHistoryId: historyId, labelId: filterLabelId, historyTypes: ['messageAdded'] })
         if (retryResult instanceof Error) throw retryResult
@@ -2223,10 +2222,7 @@ export class GmailClient {
   ): AsyncGenerator<WatchEvent> {
     const { history, historyId: newHistoryId } = historyData
 
-    if (newHistoryId !== prevHistoryId) {
-      updateHistoryId(newHistoryId)
-      await setLastHistoryId(this.account!, newHistoryId)
-    }
+    if (newHistoryId !== prevHistoryId) updateHistoryId(newHistoryId)
 
     if (history.length === 0) return
 
@@ -2476,28 +2472,6 @@ const WATCH_FOLDER_LABELS: Record<string, string> = {
   spam: 'SPAM',
   starred: 'STARRED',
   drafts: 'DRAFT',
-}
-
-// ---------------------------------------------------------------------------
-// Watch: sync state persistence (historyId in DB)
-// ---------------------------------------------------------------------------
-
-async function getLastHistoryId(account: AccountId): Promise<string | undefined> {
-  const row = getDb().query.syncState.findFirst({
-    where: { email: account.email, appId: account.appId, key: 'history_id' },
-  }).sync()
-  return row?.value
-}
-
-async function setLastHistoryId(account: AccountId, historyId: string): Promise<void> {
-  getDb()
-    .insert(schema.syncState)
-    .values({ email: account.email, appId: account.appId, key: 'history_id', value: historyId })
-    .onConflictDoUpdate({
-      target: [schema.syncState.email, schema.syncState.appId, schema.syncState.key],
-      set: { value: historyId },
-    })
-    .run()
 }
 
 // ---------------------------------------------------------------------------

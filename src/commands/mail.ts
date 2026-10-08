@@ -18,6 +18,7 @@ import { getThreadSeenMessageId, setThreadSeenMessageId } from '../db.js'
 import { hasUnsubscribeMechanism, hasOneClickUnsubscribe } from '../unsubscribe.js'
 import * as out from '../output.js'
 import { handleCommandError } from '../output.js'
+import { replyWatchCommand } from './watch.js'
 import { colors as pc } from 'goke'
 
 // ---------------------------------------------------------------------------
@@ -491,7 +492,7 @@ export function registerMailCommands(cli: ZeleCli) {
   // =========================================================================
 
   cli
-    .command('mail send', 'Send an email')
+    .command('mail send', 'Send an email. To wait for the answer, run zele mail watch right after (printed in the output) instead of ending your turn or sleeping')
     .option('--to <to>', z.string().describe('Recipient email (repeatable with comma)'))
     .option('--subject <subject>', z.string().describe('Email subject'))
     .option('--body <body>', z.string().describe('Email body text'))
@@ -585,6 +586,7 @@ export function registerMailCommands(cli: ZeleCli) {
           recipient_source: result.recipientSource,
         })
         out.success(`Sent to ${result.to.join(', ')} in thread ${options.threadId}`)
+        out.hint(`Wait for the reply: ${replyWatchCommand({ account: email, to: result.to, subject: options.subject })}`)
         return
       }
 
@@ -610,6 +612,7 @@ export function registerMailCommands(cli: ZeleCli) {
 
       out.printYaml(result)
       out.success(`Sent to ${options.to}`)
+      out.hint(`Wait for the reply: ${replyWatchCommand({ account: email, to: to.map((r) => r.email), subject: options.subject })}`)
     })
 
   // =========================================================================
@@ -617,7 +620,7 @@ export function registerMailCommands(cli: ZeleCli) {
   // =========================================================================
 
   cli
-    .command('mail reply <threadId>', 'Reply to an email thread')
+    .command('mail reply <threadId>', 'Reply to an email thread. To wait for the answer, run zele mail watch right after (printed in the output) instead of ending your turn or sleeping')
     .option('--body <body>', z.string().describe('Reply body text'))
     .option('--body-file <bodyFile>', z.string().describe('Read body from file (use - for stdin)'))
     .option('--to <to>', z.string().describe('Override the inferred recipient(s), comma-separated'))
@@ -755,6 +758,7 @@ export function registerMailCommands(cli: ZeleCli) {
         recipient_source: result.recipientSource,
       })
       out.success(`Reply sent to ${result.to.join(', ')}`)
+      out.hint(`Wait for the reply: ${replyWatchCommand({ account: accountEmail, to: result.to })}`)
     })
 
   // =========================================================================

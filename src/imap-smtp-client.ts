@@ -1208,7 +1208,13 @@ export class ImapSmtpClient {
         }
       })
 
-      if (pollResult instanceof Error) throw pollResult
+      if (pollResult instanceof AuthError) throw pollResult
+      // Network blips must not end a watch that can run for days. Retry next tick.
+      if (pollResult instanceof Error) {
+        console.error(`# Poll failed for ${this.account.email}, retrying: ${pollResult.message}`)
+        await abortableSleep(intervalMs, signal)
+        continue
+      }
       for (const event of pollResult as WatchEvent[]) {
         // Client-side query filtering (basic: from:, to:, subject:, is:unread, is:starred)
         if (query && !matchesQuery(event.message, query)) continue
