@@ -1,11 +1,15 @@
 // E2E test for the mail TUI mailbox folder switching.
 // Uses tuistory to launch the TUI via termcast dev and verify folder filter actions.
+// Skipped by default: it reads real accounts from ~/.zele and is slow and flaky.
+// Run with: ZELE_TUI_TESTS=1 bunx vitest run src/mail-tui.test.ts
 
 import path from 'path'
-import { test, expect, afterEach } from 'vitest'
+import { test as baseTest, expect, afterEach } from 'vitest'
 import { launchTerminal, type TerminalSession } from 'tuistory'
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '..')
+
+const test = baseTest.skipIf(!process.env.ZELE_TUI_TESTS)
 
 let session: TerminalSession
 
