@@ -5,9 +5,8 @@
 import type { ZeleCli } from '../cli-types.js'
 import { z } from 'zod'
 import * as errore from 'errore'
-import { getClient } from '../auth.js'
-import type { GmailClient, ParsedMessage } from '../gmail-client.js'
-import type { ImapSmtpClient } from '../imap-smtp-client.js'
+import { getClient, type ClientEntry } from '../auth.js'
+import type { ParsedMessage } from '../gmail-client.js'
 import { UnsubscribeUnavailableError, UnsubscribeFailedError } from '../api-utils.js'
 import {
   planUnsubscribe,
@@ -25,7 +24,7 @@ async function bulkAction(
   threadIds: string[],
   actionName: string,
   accountFilter: string[] | undefined,
-  fn: (client: GmailClient | ImapSmtpClient, ids: string[]) => Promise<void | Error>,
+  fn: (client: ClientEntry['client'], ids: string[]) => Promise<void | Error>,
 ) {
   if (threadIds.length === 0) {
     out.error('No thread IDs provided')

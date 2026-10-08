@@ -45,9 +45,9 @@ import {
   login,
   logout,
   type AuthStatus,
+  type ClientEntry,
 } from './auth.js'
-import type { GmailClient, ThreadListItem, ThreadData } from './gmail-client.js'
-import type { ImapSmtpClient } from './imap-smtp-client.js'
+import type { ThreadListItem, ThreadData } from './gmail-client.js'
 import { AuthError, ApiError, isTruthy } from './api-utils.js'
 import {
   renderEmailBody,
@@ -927,7 +927,7 @@ export default function Command() {
   const handleBulkAction = useCallback(
     async (
       actionName: string,
-      fn: (client: GmailClient | ImapSmtpClient, ids: string[]) => Promise<void | Error>,
+      fn: (client: ClientEntry['client'], ids: string[]) => Promise<void | Error>,
     ) => {
       if (selectedThreads.length === 0) return
 

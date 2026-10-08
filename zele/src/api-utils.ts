@@ -85,6 +85,11 @@ export class AuthError extends errore.createTaggedError({
 }) {}
 
 /** Returned when a requested resource doesn't exist (calendar, event, thread, draft, label). */
+export class ZeleShSignedOutError extends errore.createTaggedError({
+  name: 'ZeleShSignedOutError',
+  message: 'Not signed in to $apiUrl. Run: zele login zele',
+}) {}
+
 export class NotFoundError extends errore.createTaggedError({
   name: 'NotFoundError',
   message: '$resource not found',

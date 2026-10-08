@@ -179,8 +179,16 @@ export const syncState = s.sqliteTable(
   ],
 )
 
+/** zele.sh owner session per server URL. Not tied to one Account: an owner can have 0..10 inboxes. */
+export const zeleShSession = s.sqliteTable('ZeleShSession', {
+  apiUrl: s.text('apiUrl').primaryKey().notNull(),
+  ownerEmail: s.text('ownerEmail').notNull(),
+  token: s.text('token').notNull(),
+  createdAt: isoDate('createdAt').notNull(),
+})
+
 export const relations = defineRelations(
-  { account, thread, label, profile, calendarList, threadRead, syncState },
+  { account, thread, label, profile, calendarList, threadRead, syncState, zeleShSession },
   (r) => ({
     account: {
       threads: r.many.thread(),

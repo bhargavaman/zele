@@ -84,3 +84,10 @@ CREATE TABLE IF NOT EXISTS "SyncState" (
     CONSTRAINT "SyncState_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "Thread_email_appId_threadId_key" ON "Thread"("email", "appId", "threadId");
+-- zele.sh owner sessions, one per server URL. Inbox accounts point here via tokens.apiUrl.
+CREATE TABLE IF NOT EXISTS "ZeleShSession" (
+    "apiUrl" TEXT NOT NULL PRIMARY KEY,
+    "ownerEmail" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL
+);

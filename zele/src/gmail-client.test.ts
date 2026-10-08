@@ -122,6 +122,19 @@ describe('parseAuthResults', () => {
     `)
   })
 
+  test('Cloudflare Email Routing: HELO spf=none followed by MAIL FROM spf=pass is a pass', () => {
+    const header = 'mx.cloudflare.net; dkim=pass header.d=gmail.com; dmarc=pass header.from=gmail.com policy.dmarc=none; spf=none (no SPF records found for postmaster@mail-yw1.google.com) smtp.helo=mail-yw1.google.com; spf=pass smtp.mailfrom=beats.by.morse@gmail.com; arc=pass'
+    const { raw: _raw, ...result } = parseAuthResults(header)
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "authentic": true,
+        "dkim": "pass",
+        "dmarc": "pass",
+        "spf": "pass",
+      }
+    `)
+  })
+
   test('detects failed authentication', () => {
     const header = `mx.google.com;
        dkim=fail (bad signature) header.i=@spoofed.com;

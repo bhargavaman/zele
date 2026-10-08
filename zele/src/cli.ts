@@ -25,6 +25,7 @@ import { registerProfileCommands } from './commands/profile.js'
 import { registerCalendarCommands } from './commands/calendar.js'
 import { registerWatchCommands } from './commands/watch.js'
 import { registerFilterCommands } from './commands/filter.js'
+import { registerInboxCommands } from './commands/inbox.js'
 import { handleCommandError } from './output.js'
 import { closeDb } from './db.js'
 
@@ -95,6 +96,7 @@ cli.command('', 'Browse emails in TUI').action(async () => {
 // ---------------------------------------------------------------------------
 
 registerAuthCommands(cli)
+registerInboxCommands(cli)
 registerProfileCommands(cli)
 registerMailCommands(cli)
 registerMailActionCommands(cli)

@@ -95,6 +95,20 @@ Use `--imap-user` / `--smtp-user` if the login username differs from your email.
 
 For self-signed servers, prefer `--ca <path>` to trust a PEM certificate (Proton Bridge exports `cert.pem`). `--insecure` disables certificate verification and is unsafe. `--no-tls` disables implicit IMAP TLS; STARTTLS is still attempted when the server advertises it. Bridge SSL mode (implicit TLS on custom ports) needs `--smtp-tls`.
 
+### Free @zele.sh inboxes (receive only)
+
+Create up to **10 free `@zele.sh` addresses** for signups, agents, and newsletters. They are receive-only for now. The owner signs in with a **@gmail.com** address (temp-mail and custom domains are not accepted).
+
+```bash
+zele login zele --email you@gmail.com --name tommy   # sign in + create tommy@zele.sh
+zele inbox create bills                               # bills@zele.sh
+zele inbox list
+zele mail list --account tommy@zele.sh
+zele inbox delete bills@zele.sh --force               # the address is never reused
+```
+
+A sign-in code is emailed to your Gmail. If that Gmail is already a zele account, zele reads the code from it and trashes the code email. Otherwise type it, or pass `--code`.
+
 ### Account management
 
 ```bash
@@ -313,19 +327,19 @@ Google and IMAP/SMTP accounts work side by side — `mail list` merges results f
 
 ### Feature compatibility
 
-| Feature | Google | IMAP/SMTP |
-|---|---|---|
-| List, read, search emails | yes | yes |
-| Send, reply, forward | yes | yes (requires SMTP) |
-| Star, archive, trash, mark read | yes | yes |
-| Drafts | yes | yes |
-| Attachments | yes | yes |
-| Watch for new emails | yes | yes |
-| Date/sender/subject filters | yes | yes |
-| Labels | yes | no (IMAP uses folders) |
-| Filters | yes | no |
-| Calendar | yes | no |
-| Gmail search operators | full | subset (see table above) |
+| Feature | Google | IMAP/SMTP | zele.sh |
+|---|---|---|---|
+| List, read, search emails | yes | yes | yes |
+| Send, reply, forward | yes | yes (requires SMTP) | no (receive only) |
+| Star, archive, trash, mark read | yes | yes | yes |
+| Drafts | yes | yes | no |
+| Attachments | yes | yes | yes |
+| Watch for new emails | yes | yes | yes |
+| Date/sender/subject filters | yes | yes | from/to/subject only |
+| Labels | yes | no (IMAP uses folders) | no |
+| Filters | yes | no | no |
+| Calendar | yes | no | no |
+| Gmail search operators | full | subset (see table above) | from:, to:, subject:, is:unread |
 
 ## Output
 

@@ -2443,11 +2443,12 @@ const AUTH_VERDICTS = new Set(['pass', 'fail', 'softfail', 'neutral', 'none', 't
 export function parseAuthResults(header: string): AuthResult {
   const lower = header.toLowerCase()
   const extract = (protocol: string): AuthVerdict => {
-    // Match "protocol=verdict" — verdict is a word that stops at whitespace, semicolons, or parens
-    const re = new RegExp(`\\b${protocol}\\s*=\\s*([a-z]+)`)
-    const match = re.exec(lower)
-    const verdict = match?.[1] ?? 'none'
-    return AUTH_VERDICTS.has(verdict) ? verdict as AuthVerdict : 'none'
+    // Match "protocol=verdict" — verdict is a word that stops at whitespace, semicolons, or parens.
+    // Cloudflare Email Routing emits two spf= results (HELO then MAIL FROM); any pass counts.
+    const re = new RegExp(`\\b${protocol}\\s*=\\s*([a-z]+)`, 'g')
+    const verdicts = [...lower.matchAll(re)].map((m) => m[1]!).filter((v) => AUTH_VERDICTS.has(v))
+    if (verdicts.includes('pass')) return 'pass'
+    return (verdicts[0] as AuthVerdict | undefined) ?? 'none'
   }
   const spf = extract('spf')
   const dkim = extract('dkim')

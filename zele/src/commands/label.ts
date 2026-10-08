@@ -25,7 +25,7 @@ export function registerLabelCommands(cli: ZeleCli) {
       // Labels are Google-only — filter to Google accounts
       const googleClients = clients.filter((c) => c.accountType === 'google')
       if (googleClients.length === 0) {
-        handleCommandError(new UnsupportedError({ feature: 'Labels', accountType: 'IMAP/SMTP', hint: 'IMAP accounts use folders. Use --folder to browse different mailboxes.' }))
+        handleCommandError(new UnsupportedError({ feature: 'Labels', accountType: 'IMAP/SMTP and zele.sh', hint: 'Use --folder to browse different mailboxes.' }))
       }
 
       // Fetch from all Google accounts concurrently
@@ -172,7 +172,7 @@ export function registerLabelCommands(cli: ZeleCli) {
       const clients = await getClients(options.account)
       const googleClients = clients.filter((c) => c.accountType === 'google')
       if (googleClients.length === 0) {
-        handleCommandError(new UnsupportedError({ feature: 'Label counts', accountType: 'IMAP/SMTP', hint: 'IMAP accounts use folders, not labels.' }))
+        handleCommandError(new UnsupportedError({ feature: 'Label counts', accountType: 'IMAP/SMTP and zele.sh', hint: 'They use folders, not labels.' }))
       }
 
       // Fetch from all Google accounts concurrently

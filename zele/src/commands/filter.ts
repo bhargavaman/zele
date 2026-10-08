@@ -19,7 +19,7 @@ export function registerFilterCommands(cli: ZeleCli) {
       const clients = await getClients(options.account)
       const googleClients = clients.filter((c) => c.accountType === 'google')
       if (googleClients.length === 0) {
-        handleCommandError(new UnsupportedError({ feature: 'Filters', accountType: 'IMAP/SMTP', hint: 'Filters are a Gmail-specific feature.' }))
+        handleCommandError(new UnsupportedError({ feature: 'Filters', accountType: 'IMAP/SMTP and zele.sh', hint: 'Filters are a Gmail-specific feature.' }))
       }
 
       const results = await Promise.all(

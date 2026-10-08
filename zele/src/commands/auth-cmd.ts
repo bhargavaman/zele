@@ -1,5 +1,5 @@
-// Auth commands: login, login imap, login microsoft, logout, whoami.
-// Manages authentication for zele (Google OAuth, Microsoft OAuth, IMAP/SMTP).
+// Auth commands: login, login imap, login microsoft, login zele, logout, logout zele, whoami.
+// Manages authentication for zele (Google OAuth, Microsoft OAuth, IMAP/SMTP, zele.sh).
 // Supports multiple accounts: login adds accounts, logout removes one.
 
 import type { ZeleCli } from '../cli-types.js'
@@ -8,7 +8,9 @@ import { z } from 'zod'
 import * as errore from 'errore'
 import { isAgent, type GokeExecutionContext } from 'goke'
 import * as clack from '@clack/prompts'
-import { login, loginImap, loginMicrosoft, logout, listAccounts, getAuthStatuses } from '../auth.js'
+import { login, loginImap, loginMicrosoft, logout, listAccounts, getAuthStatuses, getZeleShSession, listZeleShAccounts, removeZeleShSession } from '../auth.js'
+import { runZeleLogin } from './inbox.js'
+import { resolveZeleApiUrl } from '../zele-sh-client.js'
 import { closeDb } from '../db.js'
 import * as out from '../output.js'
 import { handleCommandError } from '../output.js'
@@ -56,20 +58,21 @@ async function runBrowserOAuth(
 
 export function registerAuthCommands(cli: ZeleCli) {
   cli
-    .command('login', 'Authenticate with Google, Outlook, or IMAP/SMTP')
+    .command('login', 'Authenticate with Google, Outlook, IMAP/SMTP, or zele.sh')
     .option(
       '--method [method]',
-      z.enum(['google', 'imap', 'microsoft']).optional().describe('Authentication method'),
+      z.enum(['google', 'imap', 'microsoft', 'zele']).optional().describe('Authentication method (google, microsoft, imap, zele)'),
     )
     .example('zele login --method google')
     .example('zele login --method microsoft')
+    .example('zele login --method zele')
     .example('zele login imap')
     .action(async (options, ctx) => {
       let method = options.method
 
       if (!method) {
         if (isAgent || !process.stdin.isTTY) {
-          out.error('Run non-interactively with: zele login --method google|imap|microsoft')
+          out.error('Run non-interactively with: zele login --method google|imap|microsoft|zele')
           process.exit(1)
         }
 
@@ -78,6 +81,7 @@ export function registerAuthCommands(cli: ZeleCli) {
           options: [
             { value: 'google', label: 'Google', hint: 'opens browser for OAuth' },
             { value: 'microsoft', label: 'Outlook / Hotmail', hint: 'opens browser for Microsoft OAuth' },
+            { value: 'zele', label: 'zele.sh inbox', hint: 'free receive-only @zele.sh address, owned by your Gmail' },
             { value: 'imap', label: 'Other', hint: 'IMAP/SMTP with password' },
           ],
         })
@@ -98,6 +102,11 @@ export function registerAuthCommands(cli: ZeleCli) {
 
       if (method === 'microsoft') {
         await runBrowserOAuth(ctx, (authOptions) => loginMicrosoft(authOptions))
+        return
+      }
+
+      if (method === 'zele') {
+        await runZeleLogin({})
         return
       }
 
@@ -286,6 +295,51 @@ export function registerAuthCommands(cli: ZeleCli) {
     })
 
   cli
+    .command(
+      'login zele',
+      'Sign in to zele.sh and add your receive-only @zele.sh inboxes. The owner must be a @gmail.com address: a code is emailed to it and read automatically when that Gmail is already a zele account',
+    )
+    .option('--email [email]', z.string().optional().describe('Owner @gmail.com address (pick one of your zele Gmail accounts so the code is read automatically)'))
+    .option('--code [code]', z.string().optional().describe('Sign-in code from the zele.sh email (skips auto-read)'))
+    .option('--name [name]', z.string().optional().describe('Also create name@zele.sh after sign-in'))
+    .option('--api-url [apiUrl]', z.string().optional().describe('zele.sh server URL (default: https://zele.sh, env: ZELE_API_URL)'))
+    .example('zele login zele')
+    .example('zele login zele --email you@gmail.com')
+    .example('zele login zele --email you@gmail.com --name tommy')
+    .example('zele login zele --email you@gmail.com --code 482913')
+    .action(async (options) => {
+      await runZeleLogin(options)
+    })
+
+  cli
+    .command('logout zele', 'Sign out of zele.sh and remove all @zele.sh accounts from this machine. Inboxes and mail stay on the server')
+    .option('--force', 'Skip confirmation')
+    .option('--api-url [apiUrl]', z.string().optional().describe('zele.sh server URL (default: https://zele.sh, env: ZELE_API_URL)'))
+    .action(async (options) => {
+      const apiUrl = resolveZeleApiUrl(options.apiUrl)
+      const session = getZeleShSession(apiUrl)
+      if (!session) {
+        out.hint(`Not signed in to ${apiUrl}`)
+        return
+      }
+      const inboxes = listZeleShAccounts(apiUrl)
+      if (!options.force) {
+        if (isAgent || !process.stdin.isTTY) {
+          out.error('Use --force to logout non-interactively: zele logout zele --force')
+          process.exit(1)
+        }
+        const confirmed = await clack.confirm({
+          message: `Sign out ${session.ownerEmail} and remove ${inboxes.length} @zele.sh account(s) from this machine?`,
+          initialValue: false,
+        })
+        if (clack.isCancel(confirmed) || !confirmed) return
+      }
+      const removed = await removeZeleShSession(apiUrl)
+      if (removed instanceof Error) handleCommandError(removed)
+      out.success(`Signed out of zele.sh (${session.ownerEmail}), removed ${inboxes.length} inbox account(s)`)
+    })
+
+  cli
     .command('logout [email]', 'Remove stored credentials for an account')
     .option('--force', 'Skip confirmation')
     .action(async (email, options) => {
@@ -365,6 +419,7 @@ export function registerAuthCommands(cli: ZeleCli) {
           email: s.email,
           type: s.accountType,
           capabilities: s.capabilities.join(', '),
+          ...(s.owner ? { owner: s.owner } : {}),
           status: 'Authenticated',
           expires: s.expiresAt?.toISOString(),
         })),

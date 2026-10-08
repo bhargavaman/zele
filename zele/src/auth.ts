@@ -21,8 +21,9 @@ import { getDb, schema } from './db.js'
 import { GmailClient } from './gmail-client.js'
 import { CalendarClient } from './calendar-client.js'
 import * as errore from 'errore'
-import { AuthError, UnsupportedError } from './api-utils.js'
+import { AuthError, UnsupportedError, ZeleShSignedOutError } from './api-utils.js'
 import { ImapSmtpClient, imapTlsOptions, tlsSocketOptions } from './imap-smtp-client.js'
+import { ZeleShApi, ZeleShClient } from './zele-sh-client.js'
 import { waitForOAuthCode, type BrowserAuthOptions } from './oauth-callback-server.js'
 import {
   MICROSOFT_REDIRECT_PORT,
@@ -39,9 +40,15 @@ import {
 // Account types
 // ---------------------------------------------------------------------------
 
-export type AccountType = 'google' | 'imap_smtp'
+export type AccountType = 'google' | 'imap_smtp' | 'zele_sh'
 
 export const IMAP_SMTP_APP_ID = 'imap_smtp' as const
+export const ZELE_SH_APP_ID = 'zele_sh' as const
+
+/** Stored in the `tokens` column for zele_sh accounts. The bearer token lives in ZeleShSession. */
+export interface ZeleShAccountTokens {
+  apiUrl: string
+}
 
 export interface ImapCredentials {
   host: string
@@ -73,7 +80,7 @@ export interface ImapSmtpCredentials {
 }
 
 /** Capabilities an account can have. */
-export type AccountCapability = 'gmail' | 'calendar' | 'smtp' | 'imap'
+export type AccountCapability = 'gmail' | 'calendar' | 'smtp' | 'imap' | 'receive'
 
 export function parseCapabilities(raw: string): AccountCapability[] {
   if (!raw) return []
@@ -668,7 +675,7 @@ export interface ClientEntry {
   appId: string
   accountType: AccountType
   capabilities: AccountCapability[]
-  client: GmailClient | ImapSmtpClient
+  client: GmailClient | ImapSmtpClient | ZeleShClient
 }
 
 /**
@@ -695,6 +702,16 @@ export async function getClients(
 
   const results = await Promise.all(
     filtered.map(async (account): Promise<ClientEntry> => {
+      if (account.accountType === 'zele_sh') {
+        return {
+          email: account.email,
+          appId: account.appId,
+          accountType: 'zele_sh',
+          capabilities: account.capabilities,
+          client: new ZeleShClient({ account, loadApi: () => loadZeleShApi(account) }),
+        }
+      }
+
       if (account.accountType === 'imap_smtp') {
         return {
           email: account.email,
@@ -834,6 +851,8 @@ export interface AuthStatus {
   accountType: AccountType
   capabilities: AccountCapability[]
   expiresAt?: Date
+  /** zele.sh inboxes: the @gmail.com address that owns them. */
+  owner?: string
 }
 
 export async function getAuthStatuses(): Promise<AuthStatus[]> {
@@ -852,6 +871,11 @@ export async function getAuthStatuses(): Promise<AuthStatus[]> {
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
       }
     }
+    if (accountType === 'zele_sh') {
+      const { apiUrl }: ZeleShAccountTokens = JSON.parse(row.tokens)
+      const session = getDb().query.zeleShSession.findFirst({ where: { apiUrl } }).sync()
+      return { email: row.email, appId: row.appId, accountType, capabilities, owner: session?.ownerEmail }
+    }
     const creds: ImapSmtpCredentials = JSON.parse(row.tokens)
     return {
       email: row.email,
@@ -861,4 +885,99 @@ export async function getAuthStatuses(): Promise<AuthStatus[]> {
       expiresAt: creds.oauth ? new Date(creds.oauth.expiry) : undefined,
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// zele.sh sessions and inbox accounts
+// ---------------------------------------------------------------------------
+
+export function getZeleShSession(apiUrl: string) {
+  return getDb().query.zeleShSession.findFirst({ where: { apiUrl } }).sync() ?? null
+}
+
+export async function saveZeleShSession({ apiUrl, ownerEmail, token }: { apiUrl: string; ownerEmail: string; token: string }) {
+  return errore.tryAsync({
+    try: async () => {
+      getDb()
+        .insert(schema.zeleShSession)
+        .values({ apiUrl, ownerEmail, token, createdAt: new Date() })
+        .onConflictDoUpdate({ target: schema.zeleShSession.apiUrl, set: { ownerEmail, token, createdAt: new Date() } })
+        .run()
+    },
+    catch: (err) => new Error(`Failed to save zele.sh session for ${ownerEmail}`, { cause: err }),
+  })
+}
+
+/** Adds an @zele.sh inbox as a zele account. Idempotent. */
+export async function saveZeleShAccount({ address, apiUrl }: { address: string; apiUrl: string }) {
+  const now = new Date()
+  const tokens: ZeleShAccountTokens = { apiUrl }
+  return errore.tryAsync({
+    try: async () => {
+      getDb()
+        .insert(schema.account)
+        .values({
+          email: address,
+          appId: ZELE_SH_APP_ID,
+          accountType: 'zele_sh',
+          capabilities: 'receive',
+          accountStatus: 'active',
+          tokens: JSON.stringify(tokens),
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.account.email, schema.account.appId],
+          set: { tokens: JSON.stringify(tokens), updatedAt: now },
+        })
+        .run()
+    },
+    catch: (err) => new Error(`Failed to save account ${address}`, { cause: err }),
+  })
+}
+
+/** zele.sh inbox accounts stored on this machine for one server URL. */
+export function listZeleShAccounts(apiUrl: string): string[] {
+  const rows = getDb().query.account.findMany({ where: { accountType: 'zele_sh', appId: ZELE_SH_APP_ID } }).sync()
+  return rows.filter((r) => (JSON.parse(r.tokens) as ZeleShAccountTokens).apiUrl === apiUrl).map((r) => r.email)
+}
+
+export async function removeZeleShAccount(address: string) {
+  return errore.tryAsync({
+    try: async () => {
+      getDb()
+        .delete(schema.account)
+        .where(orm.and(orm.eq(schema.account.email, address), orm.eq(schema.account.appId, ZELE_SH_APP_ID)))
+        .run()
+    },
+    catch: (err) => new Error(`Failed to remove account ${address}`, { cause: err }),
+  })
+}
+
+/** Removes the owner session and every local inbox account of that server. Server data stays. */
+export async function removeZeleShSession(apiUrl: string) {
+  for (const address of listZeleShAccounts(apiUrl)) {
+    const removed = await removeZeleShAccount(address)
+    if (removed instanceof Error) return removed
+  }
+  return errore.tryAsync({
+    try: async () => {
+      getDb().delete(schema.zeleShSession).where(orm.eq(schema.zeleShSession.apiUrl, apiUrl)).run()
+    },
+    catch: (err) => new Error(`Failed to remove zele.sh session for ${apiUrl}`, { cause: err }),
+  })
+}
+
+/** Authenticated API for a zele.sh session, or AuthError with a login hint. */
+export function zeleShApiFor(apiUrl: string): ZeleShApi | ZeleShSignedOutError {
+  const session = getZeleShSession(apiUrl)
+  if (!session) return new ZeleShSignedOutError({ apiUrl })
+  return new ZeleShApi(apiUrl, session.token)
+}
+
+async function loadZeleShApi(account: AccountId): Promise<ZeleShApi | AuthError | ZeleShSignedOutError> {
+  const row = getDb().query.account.findFirst({ where: { email: account.email, appId: account.appId } }).sync()
+  if (!row) return new AuthError({ email: account.email, reason: 'No account found. Run: zele login zele' })
+  const { apiUrl }: ZeleShAccountTokens = JSON.parse(row.tokens)
+  return zeleShApiFor(apiUrl)
 }
