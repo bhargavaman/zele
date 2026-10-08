@@ -1,4 +1,4 @@
-<div align='center'>
+<div hidden align='center'>
     <br/>
     <br/>
     <h3>zele</h3>
@@ -22,6 +22,19 @@ bun install -g zele
 ```
 
 > If you install via npm and run `zele` (the TUI), it will try to find `bun` in your PATH and re-spawn automatically. If bun is not installed, you'll get install instructions.
+
+<p className='text-center text-sm text-muted-foreground'>Works with Gmail, Outlook, Fastmail, Proton Mail and any IMAP/SMTP provider</p>
+
+<Marquee duration={30} slowOnHover gap={48}>
+  <Icon icon="/logos/gmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/googlecalendar.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/microsoftoutlook.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/fastmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/protonmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/icloud.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/yahoo.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/zoho.svg" size={28} color="var(--muted-foreground)" />
+</Marquee>
 
 ## Setup
 

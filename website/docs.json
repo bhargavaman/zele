@@ -3,9 +3,9 @@
   "name": "zele",
   "description": "Email and calendar CLI for Gmail, Outlook, IMAP/SMTP, and Google Calendar. For you and your agents.",
   "colors": {
-    "primary": "#2563eb",
-    "light": "#2563eb",
-    "dark": "#60a5fa"
+    "primary": "#0ea5e9",
+    "light": "#0ea5e9",
+    "dark": "#7dd3fc"
   },
   "knownPaths": ["/api/*"],
   "decorativeLines": "none",

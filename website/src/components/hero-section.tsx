@@ -9,7 +9,6 @@ import { VideoBackgroundShader } from '@holocron.so/vite/mdx'
 
 const HERO_FONT = "'IvarText', serif"
 const GITHUB_URL = 'https://github.com/remorses/zele'
-const INSTALL_COMMAND = 'npm i -g zele'
 
 function GithubIcon({ size = 14 }: { size?: number }) {
   return (
@@ -27,7 +26,7 @@ function HeroBackground() {
         src='/assets/hero-bg.mp4'
         className='absolute inset-0 w-full h-full'
         dotStyle='ascii'
-        dotColor='rgba(37, 99, 235, 0.7)'
+        dotColor='rgba(125, 211, 252, 0.7)'
         dotSize={10}
         chars=' .:-~=@zele'
         animSpeed={3}
@@ -39,23 +38,6 @@ function HeroBackground() {
         fluidCurl={80}
       />
     </div>
-  )
-}
-
-function CopyInstallButton() {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type='button'
-      onClick={async () => {
-        await navigator.clipboard.writeText(INSTALL_COMMAND)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      }}
-      className='inline-flex items-center gap-2 rounded-md bg-foreground text-background h-9 px-4 text-sm font-mono font-medium hover:opacity-90 transition-opacity cursor-pointer'
-    >
-      {copied ? 'copied' : INSTALL_COMMAND}
-    </button>
   )
 }
 
@@ -79,11 +61,10 @@ export function HeroSection() {
           className='flex flex-col items-center leading-[1.1] text-[32px] sm:text-[42px] md:text-[52px] text-foreground'
           style={{ fontFamily: HERO_FONT }}
         >
-          <span>email and calendar CLI</span>
+          <span>Email and calendar CLI</span>
           <span>for you and your agents</span>
         </h1>
         <div className='flex gap-2.5 flex-wrap justify-center'>
-          <CopyInstallButton />
           <a
             href={GITHUB_URL}
             target='_blank'
