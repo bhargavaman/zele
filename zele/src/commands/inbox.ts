@@ -47,12 +47,12 @@ async function gmailAccountsInZele(): Promise<string[]> {
 async function chooseOwnerEmail(): Promise<string> {
   const gmails = await gmailAccountsInZele()
   if (isAgent || !process.stdin.isTTY) {
-    out.error('Missing --email. The owner must be a @gmail.com address.')
+    out.error('Missing --owner. The owner must be a @gmail.com address.')
     if (gmails.length > 0) {
       out.hint('Gmail accounts in zele (the code is read automatically from these):')
-      for (const email of gmails) out.hint(`  zele login zele --email ${email}`)
+      for (const email of gmails) out.hint(`  zele login zele --owner ${email}`)
     } else {
-      out.hint('Usage: zele login zele --email you@gmail.com')
+      out.hint('Usage: zele login zele --owner you@gmail.com')
     }
     process.exit(1)
   }
@@ -110,7 +110,7 @@ async function signIn({ apiUrl, email, code }: { apiUrl: string; email?: string;
   const ownerInput = email ?? (await chooseOwnerEmail())
   const owner = canonicalGmail(ownerInput)
   if (!owner) {
-    handleCommandError(new Error(`zele.sh owners must be @gmail.com addresses, got ${ownerInput}. Try: zele login zele --email you@gmail.com`))
+    handleCommandError(new Error(`zele.sh owners must be @gmail.com addresses, got ${ownerInput}. Try: zele login zele --owner you@gmail.com`))
   }
 
   let otp = code
@@ -133,7 +133,7 @@ async function signIn({ apiUrl, email, code }: { apiUrl: string; email?: string;
       otp = typed.trim()
     } else {
       out.success(`Sent a code to ${owner}`)
-      out.hint(`Rerun with: zele login zele --email ${owner} --code <code>`)
+      out.hint(`Rerun with: zele login zele --owner ${owner} --code <code>`)
       return null
     }
   }
@@ -184,9 +184,9 @@ async function promptInboxName(): Promise<string> {
   return name.trim()
 }
 
-export async function runZeleLogin(options: { email?: string; code?: string; name?: string; apiUrl?: string }) {
+export async function runZeleLogin(options: { owner?: string; code?: string; name?: string; apiUrl?: string }) {
   const apiUrl = resolveZeleApiUrl(options.apiUrl)
-  const session = await signIn({ apiUrl, email: options.email, code: options.code })
+  const session = await signIn({ apiUrl, email: options.owner, code: options.code })
   if (!session) return
   out.success(`Signed in to zele.sh as ${session.ownerEmail}`)
   const list = await syncInboxes(apiUrl)
@@ -213,15 +213,15 @@ export function registerInboxCommands(cli: ZeleCli) {
       'inbox create [name]',
       'Create a receive-only name@zele.sh inbox (max 10 per owner). Owners sign in with a @gmail.com address',
     )
-    .option('--email [email]', z.string().optional().describe('Owner @gmail.com address, used to sign in first if needed'))
+    .option('--owner [email]', z.string().optional().describe('Your @gmail.com address that owns the inboxes, used to sign in first if needed'))
     .option('--code [code]', z.string().optional().describe('Sign-in code from the zele.sh email (skips auto-read)'))
     .option(...apiUrlOption)
     .example('zele inbox create tommy')
-    .example('zele inbox create tommy --email you@gmail.com')
+    .example('zele inbox create tommy --owner you@gmail.com')
     .action(async (nameArg, options) => {
       const apiUrl = resolveZeleApiUrl(options.apiUrl)
       if (!getZeleShSession(apiUrl)) {
-        const session = await signIn({ apiUrl, email: options.email, code: options.code })
+        const session = await signIn({ apiUrl, email: options.owner, code: options.code })
         if (!session) return
         await syncInboxes(apiUrl)
       }

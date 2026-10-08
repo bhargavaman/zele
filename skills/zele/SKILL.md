@@ -11,7 +11,9 @@ description: >
   load this skill when the user asks to check email, read/send messages,
   reply or forward, archive or trash threads, manage drafts or labels,
   download attachments, schedule meetings, check their calendar, RSVP
-  to events, or when they run any `zele` command. Load it before writing
+  to events, create a free @zele.sh inbox (receive-only email address for
+  signups, verification codes, or agents), or when they run any `zele`
+  command. Load it before writing
   any code or shell commands that touch zele so you know the correct
   subcommand structure, the Google vs IMAP feature matrix, the headless
   login flow, and the agent-specific rules.
@@ -90,3 +92,18 @@ The README and `zele --help` output are the source of truth for commands, option
     Grazie mille!
     Tommaso De Rossi
     ```
+12. **Free `@zele.sh` inboxes (receive only).** Use them when the user wants a throwaway or dedicated address for signups, newsletters, verification codes, or an agent. Each owner (a **@gmail.com** address, no other domains) gets up to **10** inboxes. They work like any account with `--account name@zele.sh` for list, read, search, watch, star, archive, trash and attachments. Sending, drafts and labels fail with a receive-only error.
+    ```bash
+    # 1. pick the owner: a @gmail.com account from `zele whoami` (type: google).
+    #    The sign-in code is then read from that Gmail automatically.
+    zele login zele --owner you@gmail.com --name tommy   # sign in + create tommy@zele.sh
+    zele inbox create bills                               # more inboxes, already signed in
+    zele inbox list
+
+    # 2. wait for a signup / verification email
+    zele mail watch --account bills@zele.sh --filter 'subject:verify' --timeout 600
+    ```
+    - Without `--owner` in an agent shell, `login zele` fails and lists the Gmail accounts in zele. Pick one, do not guess.
+    - If the owner Gmail is not a zele account, the code is emailed and the command prints `Rerun with: zele login zele --owner ... --code <code>`. Ask the user for the code.
+    - `zele inbox delete <address> --force` deletes the inbox and all its mail. The address can **never** be created again, so confirm with the user first.
+    - `zele logout zele --force` removes the session and the inbox accounts from this machine. Inboxes and mail stay on the server.

@@ -110,17 +110,20 @@ For self-signed servers, prefer `--ca <path>` to trust a PEM certificate (Proton
 
 ### Free @zele.sh inboxes (receive only)
 
-Create up to **10 free `@zele.sh` addresses** for signups, agents, and newsletters. They are receive-only for now. The owner signs in with a **@gmail.com** address (temp-mail and custom domains are not accepted).
+Create up to **10 free `@zele.sh` addresses** for signups, newsletters, verification codes, and agents. They are receive-only for now. The **owner** is your **@gmail.com** address (no temp-mail, no custom domains).
 
 ```bash
-zele login zele --email you@gmail.com --name tommy   # sign in + create tommy@zele.sh
+zele login zele --owner you@gmail.com --name tommy   # sign in + create tommy@zele.sh
 zele inbox create bills                               # bills@zele.sh
 zele inbox list
 zele mail list --account tommy@zele.sh
+zele mail watch --account bills@zele.sh --filter 'subject:verify' --timeout 600
 zele inbox delete bills@zele.sh --force               # the address is never reused
 ```
 
-A sign-in code is emailed to your Gmail. If that Gmail is already a zele account, zele reads the code from it and trashes the code email. Otherwise type it, or pass `--code`.
+Sign-in sends a code to the owner Gmail. If that Gmail is already a zele account, zele reads the code from it and trashes the code email, so login needs no typing. Otherwise type the code, or pass `--code`.
+
+Inboxes work like any other account: `mail list`, `read`, `search` (`from:`, `to:`, `subject:`, `is:unread`), `watch`, `star`, `archive`, `trash`, `spam` and `attachment`. `zele logout zele` removes the session and inbox accounts from this machine; inboxes and mail stay on the server.
 
 ### Account management
 

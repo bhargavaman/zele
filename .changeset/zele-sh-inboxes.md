@@ -2,10 +2,10 @@
 'zele': minor
 ---
 
-Add free receive-only `@zele.sh` inboxes. Sign in with a @gmail.com owner and create up to 10 addresses:
+Add free receive-only `@zele.sh` inboxes. Sign in with a @gmail.com owner (`--owner`) and create up to 10 addresses:
 
 ```bash
-zele login zele --email you@gmail.com --name tommy
+zele login zele --owner you@gmail.com --name tommy
 zele inbox create bills
 zele inbox list
 zele mail list --account tommy@zele.sh

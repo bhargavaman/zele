@@ -299,14 +299,14 @@ export function registerAuthCommands(cli: ZeleCli) {
       'login zele',
       'Sign in to zele.sh and add your receive-only @zele.sh inboxes. The owner must be a @gmail.com address: a code is emailed to it and read automatically when that Gmail is already a zele account',
     )
-    .option('--email [email]', z.string().optional().describe('Owner @gmail.com address (pick one of your zele Gmail accounts so the code is read automatically)'))
+    .option('--owner [email]', z.string().optional().describe('Your @gmail.com address that owns the inboxes (pick one of your zele Gmail accounts so the code is read automatically)'))
     .option('--code [code]', z.string().optional().describe('Sign-in code from the zele.sh email (skips auto-read)'))
     .option('--name [name]', z.string().optional().describe('Also create name@zele.sh after sign-in'))
     .option('--api-url [apiUrl]', z.string().optional().describe('zele.sh server URL (default: https://zele.sh, env: ZELE_API_URL)'))
     .example('zele login zele')
-    .example('zele login zele --email you@gmail.com')
-    .example('zele login zele --email you@gmail.com --name tommy')
-    .example('zele login zele --email you@gmail.com --code 482913')
+    .example('zele login zele --owner you@gmail.com')
+    .example('zele login zele --owner you@gmail.com --name tommy')
+    .example('zele login zele --owner you@gmail.com --code 482913')
     .action(async (options) => {
       await runZeleLogin(options)
     })
