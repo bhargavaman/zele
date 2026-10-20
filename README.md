@@ -1,4 +1,4 @@
-<div align='center'>
+<div hidden align='center'>
     <br/>
     <br/>
     <h3>zele</h3>
@@ -9,7 +9,7 @@
 
 ## Install
 
-Multi-account email and calendar client supporting **Google OAuth**, **Microsoft OAuth** (Outlook / Hotmail), and **IMAP/SMTP** (Fastmail, any provider). SQLite cache, YAML output.
+Multi-account email and calendar client supporting **Google OAuth**, **Microsoft OAuth** (Outlook / Hotmail), **IMAP/SMTP** (Fastmail, any provider), and free **@zele.sh** addresses. SQLite cache, YAML output.
 
 All CLI commands work with **Node.js** (v22.16+). The interactive TUI (`zele` with no subcommand) requires [Bun](https://bun.sh) and will auto-spawn it if available.
 
@@ -22,6 +22,19 @@ bun install -g zele
 ```
 
 > If you install via npm and run `zele` (the TUI), it will try to find `bun` in your PATH and re-spawn automatically. If bun is not installed, you'll get install instructions.
+
+<p className='text-sm text-muted-foreground'>Works with Gmail, Outlook, Fastmail, Proton Mail and any IMAP/SMTP provider</p>
+
+<Marquee duration={30} slowOnHover gap={48}>
+  <Icon icon="/logos/gmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/googlecalendar.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/microsoftoutlook.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/fastmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/protonmail.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/icloud.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/yahoo.svg" size={28} color="var(--muted-foreground)" />
+  <Icon icon="/logos/zoho.svg" size={28} color="var(--muted-foreground)" />
+</Marquee>
 
 ## Setup
 
@@ -95,6 +108,23 @@ Use `--imap-user` / `--smtp-user` if the login username differs from your email.
 
 For self-signed servers, prefer `--ca <path>` to trust a PEM certificate (Proton Bridge exports `cert.pem`). `--insecure` disables certificate verification and is unsafe. `--no-tls` disables implicit IMAP TLS; STARTTLS is still attempted when the server advertises it. Bridge SSL mode (implicit TLS on custom ports) needs `--smtp-tls`.
 
+### Free @zele.sh inboxes (receive only)
+
+Get up to **10 free, permanent `@zele.sh` addresses**: a real email address for you, a project, or each of your agents. They keep your mail until you delete it. They are receive-only for now; sending is planned. The **owner** is your **@gmail.com** address (other domains are not accepted, to keep bots out).
+
+```bash
+zele login zele --owner you@gmail.com --name tommy   # sign in + create tommy@zele.sh
+zele inbox create bills                               # bills@zele.sh
+zele inbox list
+zele mail list --account tommy@zele.sh
+zele mail watch --account bills@zele.sh --filter 'subject:verify' --timeout 600
+zele inbox delete bills@zele.sh --force               # the address is never reused
+```
+
+Sign-in sends a code to the owner Gmail. If that Gmail is already a zele account, zele reads the code from it and trashes the code email, so login needs no typing. Otherwise type the code, or pass `--code`.
+
+Inboxes work like any other account: `mail list`, `read`, `search` (`from:`, `to:`, `subject:`, `is:unread`), `watch`, `star`, `archive`, `trash`, `spam` and `attachment`. `zele logout zele` removes the session and inbox accounts from this machine; inboxes and mail stay on the server.
+
 ### Account management
 
 ```bash
@@ -144,11 +174,14 @@ Use `mail send --thread-id` when you want full control over recipients and subje
 zele mail send --thread-id <thread-id> --to paul@acme.com --cc dana@acme.com --body "…"
 ```
 
-`mail watch` blocks until the first email matching the filter arrives, prints it, and exits (code 0). If `--timeout` is set and no match arrives in time, it exits with code 1. This is useful for agents that need to send an email and then wait for the reply:
+`mail watch` blocks until the first **new** email matching the filter arrives, prints it with the `elapsed` wait time, and exits (code 0). Only emails that arrive after it starts can match. If `--timeout` is set and no match arrives in time, it exits with code 1. While waiting it prints `# Still watching, 3m 0s elapsed` to stderr every minute. Network errors do not stop it; it retries on the next poll, so waiting days (`--timeout 259200`) is fine.
+
+Agents should run it **right after** `mail send` or `mail reply` to wait for the answer, instead of ending their turn or sleeping. Both commands print the exact watch command to run:
 
 ```bash
 zele mail send --to bob@example.com --subject "Question" --body "Hey, can you check this?"
-zele mail watch --filter "is:unread from:bob subject:Re:Question" --timeout 600
+# Wait for the reply: zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
+zele mail watch --account me@example.com --filter 'from:bob@example.com subject:"Question"' --timeout 259200
 ```
 
 **Body formatting.** Write each paragraph as **one line**. Separate paragraphs with one blank line. Never hard-wrap lines at 72-80 columns: mail clients reflow text themselves, and hard breaks show up as broken mid-sentence lines. Capitalize the first word of every paragraph, also after a greeting that ends with a comma. These rules also apply to drafts you show the user before sending.
@@ -310,19 +343,19 @@ Google and IMAP/SMTP accounts work side by side — `mail list` merges results f
 
 ### Feature compatibility
 
-| Feature | Google | IMAP/SMTP |
-|---|---|---|
-| List, read, search emails | yes | yes |
-| Send, reply, forward | yes | yes (requires SMTP) |
-| Star, archive, trash, mark read | yes | yes |
-| Drafts | yes | yes |
-| Attachments | yes | yes |
-| Watch for new emails | yes | yes |
-| Date/sender/subject filters | yes | yes |
-| Labels | yes | no (IMAP uses folders) |
-| Filters | yes | no |
-| Calendar | yes | no |
-| Gmail search operators | full | subset (see table above) |
+| Feature | Google | IMAP/SMTP | zele.sh |
+|---|---|---|---|
+| List, read, search emails | yes | yes | yes |
+| Send, reply, forward | yes | yes (requires SMTP) | no (receive only) |
+| Star, archive, trash, mark read | yes | yes | yes |
+| Drafts | yes | yes | no |
+| Attachments | yes | yes | yes |
+| Watch for new emails | yes | yes | yes |
+| Date/sender/subject filters | yes | yes | from/to/subject only |
+| Labels | yes | no (IMAP uses folders) | no |
+| Filters | yes | no | no |
+| Calendar | yes | no | no |
+| Gmail search operators | full | subset (see table above) | from:, to:, subject:, is:unread |
 
 ## Output
 

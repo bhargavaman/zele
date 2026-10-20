@@ -1,0 +1,93 @@
+-- Runtime DDL applied on CLI start. Keep in sync with src/schema.ts.
+CREATE TABLE IF NOT EXISTS "Account" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "accountType" TEXT NOT NULL DEFAULT 'google',
+    "capabilities" TEXT NOT NULL DEFAULT '',
+    "accountStatus" TEXT NOT NULL,
+    "tokens" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL,
+    "updatedAt" DATETIME NOT NULL,
+
+    PRIMARY KEY ("email", "appId")
+);
+CREATE TABLE IF NOT EXISTS "Thread" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "threadId" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
+    "snippet" TEXT NOT NULL,
+    "fromEmail" TEXT NOT NULL,
+    "fromName" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "labelIds" TEXT NOT NULL,
+    "hasUnread" BOOLEAN NOT NULL,
+    "msgCount" INTEGER NOT NULL,
+    "historyId" TEXT,
+    "rawData" TEXT NOT NULL,
+    "ttlMs" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL,
+    CONSTRAINT "Thread_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE IF NOT EXISTS "Label" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "rawData" TEXT NOT NULL,
+    "ttlMs" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL,
+
+    PRIMARY KEY ("email", "appId"),
+    CONSTRAINT "Label_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "Profile" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "emailAddress" TEXT NOT NULL,
+    "messagesTotal" INTEGER NOT NULL,
+    "threadsTotal" INTEGER NOT NULL,
+    "historyId" TEXT NOT NULL,
+    "ttlMs" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL,
+
+    PRIMARY KEY ("email", "appId"),
+    CONSTRAINT "Profile_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "CalendarList" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "rawData" TEXT NOT NULL,
+    "ttlMs" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL,
+
+    PRIMARY KEY ("email", "appId"),
+    CONSTRAINT "CalendarList_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "ThreadRead" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "threadId" TEXT NOT NULL,
+    "messageId" TEXT NOT NULL,
+    "seenAt" DATETIME NOT NULL,
+
+    PRIMARY KEY ("email", "appId", "threadId"),
+    CONSTRAINT "ThreadRead_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE IF NOT EXISTS "SyncState" (
+    "email" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+
+    PRIMARY KEY ("email", "appId", "key"),
+    CONSTRAINT "SyncState_email_appId_fkey" FOREIGN KEY ("email", "appId") REFERENCES "Account" ("email", "appId") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX "Thread_email_appId_threadId_key" ON "Thread"("email", "appId", "threadId");
+-- zele.sh owner sessions, one per server URL. Inbox accounts point here via tokens.apiUrl.
+CREATE TABLE IF NOT EXISTS "ZeleShSession" (
+    "apiUrl" TEXT NOT NULL PRIMARY KEY,
+    "ownerEmail" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL
+);
